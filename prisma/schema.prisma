@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  RECRUITING
+  DISPATCHER
+  OPERATIONS
+  ACCOUNTING
+}
+
+enum LoadStatus {
+  PENDING
+  DISPATCHED_TO_PICKUP
+  ONSITE_FOR_PICKUP
+  LOADED_AND_DELIVERING
+  ONSITE_FOR_DELIVERY
+  DELIVERED
+  CANCELED
+}
+
+enum FinStatus {
+  UNPAID
+  PENDING
+  PAID
+}
+
+model User {
+  id               String   @id @default(cuid())
+  name             String
+  surname          String
+  email            String   @unique
+  password         String
+  idNumber         String   @unique
+  role             Role
+  phoneNumber      String
+  phone2           String?
+  address          String?
+  emergencyContact String?
+  createdAt        DateTime @default(now())
+}
+
+model Owner {
+  id    String @id @default(cuid())
+  name  String
+  email String
+  phone String
+}
+
+model Unit {
+  id         String   @id @default(cuid())
+  unitNumber String
+  type       String
+  dimensions Json
+  ownerId    String?
+  drivers    Driver[]
+}
+
+model Driver {
+  id           String  @id @default(cuid())
+  name         String
+  vehicleType  String
+  currentZip   String
+  searchRadius Int
+  telegramId   String?
+  unitId       String?
+  unit         Unit?   @relation(fields: [unitId], references: [id])
+  bids         Bid[]
+}
+
+model Load {
+  id              String     @id @default(cuid())
+  status          LoadStatus @default(PENDING)
+  financialStatus FinStatus  @default(UNPAID)
+  broker          String
+  pickupZip       String
+  pickupAddress   String
+  pickupDate      DateTime
+  deliveryAddress String
+  deliveryDate    DateTime
+  rate            Float?
+  miles           Float?
+  weight          Float?
+  dimensions      Json?
+  vehicleRequired String
+  rcUploaded      Boolean    @default(false)
+  dispatcherId    String?
+  driverId        String?
+  unitId          String?
+  createdAt       DateTime   @default(now())
+  bids            Bid[]
+}
+
+model Bid {
+  id        String   @id @default(cuid())
+  loadId    String
+  driverId  String
+  amount    Float
+  status    String
+  createdAt DateTime @default(now())
+  load      Load     @relation(fields: [loadId], references: [id])
+  driver    Driver   @relation(fields: [driverId], references: [id])
+}
