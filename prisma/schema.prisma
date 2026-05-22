@@ -54,12 +54,21 @@ model Owner {
 }
 
 model Unit {
-  id         String   @id @default(cuid())
-  unitNumber String
-  type       String
-  dimensions Json
-  ownerId    String?
-  drivers    Driver[]
+  id              String   @id @default(cuid())
+  unitNumber      String
+  type            String
+  make            String?
+  model           String?
+  year            String?
+  vin             String?
+  plateNumber     String?
+  ownerId         String?
+  payload         Float?
+  equipment       Json?
+  dimensions      Json?
+  registrationUrl String?
+  pictureUrls     Json?
+  drivers         Driver[]
 }
 
 model Driver {
