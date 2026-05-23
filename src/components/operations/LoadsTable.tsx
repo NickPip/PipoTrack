@@ -2,41 +2,30 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, List, MessageSquare } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import FilterBar from "@/components/shared/FilterBar";
+import PageTable, { TD, TD_MONO, Dim, KebabBtn, Pill, StackCell, Avatar, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import AddLoadModal, { type LoadRow } from "@/components/operations/AddLoadModal";
 import LoadNotesPanel, { type LoadSummary } from "@/components/operations/LoadNotesPanel";
+import NotesBtn from "@/components/operations/NotesBtn";
 
-const STATUS_FILTER_OPTIONS = [
-  { value: "PENDING", label: "Pending" },
-  { value: "DISPATCHED_TO_PICKUP", label: "Dispatched to Pickup" },
-  { value: "ONSITE_FOR_PICKUP", label: "OnSite for Pickup" },
-  { value: "LOADED_AND_DELIVERING", label: "Loaded and Delivering" },
-  { value: "ONSITE_FOR_DELIVERY", label: "OnSite for Delivery" },
-  { value: "DELIVERED", label: "Delivered" },
-  { value: "CANCELED", label: "Canceled" },
+const STATUS_OPTIONS = [
+  { value: "PENDING",               label: "Pending"      },
+  { value: "DISPATCHED_TO_PICKUP",  label: "Dispatched"   },
+  { value: "ONSITE_FOR_PICKUP",     label: "At Pickup"    },
+  { value: "LOADED_AND_DELIVERING", label: "In Transit"   },
+  { value: "ONSITE_FOR_DELIVERY",   label: "At Delivery"  },
+  { value: "DELIVERED",             label: "Delivered"    },
+  { value: "CANCELED",              label: "Canceled"     },
 ];
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Pending",
-  DISPATCHED_TO_PICKUP: "Dispatched",
-  ONSITE_FOR_PICKUP: "OnSite Pickup",
-  LOADED_AND_DELIVERING: "Delivering",
-  ONSITE_FOR_DELIVERY: "OnSite Delivery",
-  DELIVERED: "Delivered",
-  CANCELED: "Canceled",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-gray-100 text-gray-600",
-  DISPATCHED_TO_PICKUP: "bg-blue-50 text-blue-700",
-  ONSITE_FOR_PICKUP: "bg-yellow-50 text-yellow-700",
-  LOADED_AND_DELIVERING: "bg-purple-50 text-purple-700",
-  ONSITE_FOR_DELIVERY: "bg-orange-50 text-orange-700",
-  DELIVERED: "bg-green-50 text-green-700",
-  CANCELED: "bg-red-50 text-red-600",
+type StatusVariant = "dispatched" | "atPickup" | "inTransit" | "delivered" | "delayed" | "gray";
+const STATUS_MAP: Record<string, { label: string; variant: StatusVariant }> = {
+  PENDING:               { label: "Pending",     variant: "dispatched" },
+  DISPATCHED_TO_PICKUP:  { label: "Dispatched",  variant: "dispatched" },
+  ONSITE_FOR_PICKUP:     { label: "At Pickup",   variant: "atPickup"   },
+  LOADED_AND_DELIVERING: { label: "In Transit",  variant: "inTransit"  },
+  ONSITE_FOR_DELIVERY:   { label: "At Delivery", variant: "atPickup"   },
+  DELIVERED:             { label: "Delivered",   variant: "delivered"  },
+  CANCELED:              { label: "Canceled",    variant: "delayed"    },
 };
 
 async function fetchLoads(): Promise<LoadRow[]> {
@@ -45,26 +34,27 @@ async function fetchLoads(): Promise<LoadRow[]> {
   return res.json();
 }
 
-function formatDate(value: string) {
-  if (!value) return "—";
+function parseAddress(addr: string) {
+  const match = addr.match(/\b(\d{5})(-\d{4})?\b/);
+  if (match) return { main: addr.replace(match[0], "").replace(/,\s*$/, "").trim(), zip: match[1] };
+  return { main: addr, zip: "" };
+}
+
+function fmtDate(value: string) {
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${mm}/${dd} ${hh}:${min}`;
+  return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
 export default function LoadsTable() {
   const qc = useQueryClient();
   const { data: loads = [], isLoading } = useQuery({ queryKey: ["loads"], queryFn: fetchLoads });
 
-  const [search, setSearch] = useState("");
+  const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editLoad, setEditLoad] = useState<LoadRow | null>(null);
-  const [notesLoad, setNotesLoad] = useState<LoadSummary | null>(null);
+  const [modalOpen,    setModalOpen]    = useState(false);
+  const [editLoad,     setEditLoad]     = useState<LoadRow | null>(null);
+  const [notesLoad,    setNotesLoad]    = useState<LoadSummary | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -74,182 +64,91 @@ export default function LoadsTable() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["loads"] }),
   });
 
-  const filtered = loads.filter((l) => {
+  const filtered = loads.filter(l => {
+    const q = search.toLowerCase();
     const matchSearch =
       String(l.loadNumber).includes(search) ||
-      l.broker.toLowerCase().includes(search.toLowerCase()) ||
-      (l.brokerReference ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.dispatcherName ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      l.pickupAddress.toLowerCase().includes(search.toLowerCase()) ||
-      l.deliveryAddress.toLowerCase().includes(search.toLowerCase());
+      l.broker.toLowerCase().includes(q) ||
+      (l.brokerReference ?? "").toLowerCase().includes(q) ||
+      (l.dispatcherName ?? "").toLowerCase().includes(q) ||
+      l.pickupAddress.toLowerCase().includes(q) ||
+      l.deliveryAddress.toLowerCase().includes(q);
     const matchStatus = statusFilter === "all" || l.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  function handleEdit(load: LoadRow) {
-    setEditLoad(load);
-    setModalOpen(true);
-  }
-
-  function handleAdd() {
-    setEditLoad(null);
-    setModalOpen(true);
-  }
-
-  function handleDelete(id: string) {
-    if (confirm("Delete this load?")) deleteMutation.mutate(id);
-  }
-
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">All Loads</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{loads.length} total</p>
-        </div>
-        <Button onClick={handleAdd} className="bg-black text-white hover:bg-gray-800">
-          + Add New Load
-        </Button>
-      </div>
-
-      <FilterBar
+    <>
+      <PageTable
+        breadcrumb={["Operations", "All Loads"]}
+        title="All Loads"
+        subtitle="Every load across all statuses."
+        count={loads.length}
+        isLoading={isLoading}
+        actions={
+          <PrimaryBtn onClick={() => { setEditLoad(null); setModalOpen(true); }}>
+            New Load
+          </PrimaryBtn>
+        }
         search={search}
         onSearchChange={setSearch}
-        filterValue={statusFilter}
-        onFilterChange={setStatusFilter}
-        filterOptions={STATUS_FILTER_OPTIONS}
-        filterPlaceholder="All Statuses"
-        searchPlaceholder="Search by load #, broker, address…"
+        filterChips={[{ label: "Status", value: statusFilter, options: STATUS_OPTIONS, onChange: setStatusFilter }]}
+        columns={[
+          { label: "Load #",       width: 80          },
+          { label: "Ref #",        width: 110         },
+          { label: "Status"                           },
+          { label: "Broker"                           },
+          { label: "Dispatcher"                       },
+          { label: "Origin"                           },
+          { label: "",             width: 18          },
+          { label: "Destination"                      },
+          { label: "Unit"                             },
+          { label: "Rate",         align: "right"     },
+          { label: "",             width: 80          },
+          { label: "",             width: 48          },
+        ]}
+        rows={filtered}
+        rowKey={l => l.id}
+        emptyMessage="No loads found"
+        emptyBody="Try adjusting your search or status filter."
+        renderCells={(load, isLast) => {
+          const nb       = isLast ? "none" : undefined;
+          const pickup   = parseAddress(load.pickupAddress);
+          const delivery = parseAddress(load.deliveryAddress);
+          const statusCfg = STATUS_MAP[load.status] ?? { label: load.status, variant: "gray" as StatusVariant };
+          return (
+            <>
+              <td style={{ ...TD_MONO, ...FIRST_TD, borderBottom: nb }}>#{load.loadNumber}</td>
+              <td style={{ ...TD_MONO, color: "var(--ink-3)", borderBottom: nb }}>{load.brokerReference ?? <Dim />}</td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                <Pill label={statusCfg.label} variant={statusCfg.variant as any} />
+              </td>
+              <td style={{ ...TD, borderBottom: nb, whiteSpace: "nowrap" }}>{load.broker}</td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                {load.dispatcherName
+                  ? <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={load.dispatcherName} /><span style={{ whiteSpace: "nowrap" }}>{load.dispatcherName}</span></div>
+                  : <Dim />}
+              </td>
+              <td style={{ ...TD, borderBottom: nb }}><StackCell top={pickup.main} topSub={pickup.zip || undefined} sub={fmtDate(load.pickupDate)} /></td>
+              <td style={{ padding: 0, width: 18, verticalAlign: "middle", color: "var(--ink-3)", textAlign: "center", borderBottom: isLast ? "none" : "1px solid var(--line)" }}>→</td>
+              <td style={{ ...TD, borderBottom: nb }}><StackCell top={delivery.main} topSub={delivery.zip || undefined} sub={fmtDate(load.deliveryDate)} /></td>
+              <td style={{ ...TD, borderBottom: nb }}>{load.unitNumber ?? <Dim />}</td>
+              <td style={{ ...TD, borderBottom: nb, textAlign: "right", fontFamily: "var(--font-geist-mono, monospace)", fontSize: 12.5 }}>
+                {load.rate != null ? `$${load.rate.toLocaleString()}` : <Dim />}
+              </td>
+              <td style={{ ...TD, borderBottom: nb, textAlign: "center" }}>
+                <NotesBtn count={load.notesCount ?? 0} onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })} />
+              </td>
+              <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
+                <KebabBtn onClick={() => { setEditLoad(load); setModalOpen(true); }} />
+              </td>
+            </>
+          );
+        }}
       />
 
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Load #</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Ref #</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Broker</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Dispatcher</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Tracking ID</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Origin</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Destination</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Unit</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Distance</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Movement</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i} className="border-b border-gray-50">
-                <td className="px-4 py-3"><Skeleton className="h-4 w-12" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-16 mt-1.5" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-16 mt-1.5" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
-                <td className="px-4 py-3" />
-              </tr>
-            ))}
-            {!isLoading && filtered.length === 0 && (
-              <tr>
-                <td colSpan={12} className="px-4 py-14 text-center">
-                  <List size={28} className="mx-auto text-gray-200 mb-2" />
-                  <p className="text-sm text-gray-400">No loads found</p>
-                </td>
-              </tr>
-            )}
-            {filtered.map((load, i) => (
-              <tr
-                key={load.id}
-                className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i === filtered.length - 1 ? "border-0" : ""}`}
-              >
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <p className="font-medium text-gray-900">#{load.loadNumber}</p>
-                </td>
-                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                  {load.brokerReference ?? <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
-                  {load.broker}
-                </td>
-                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                  {load.dispatcherName ?? <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                  {load.trackingName ?? <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-3 max-w-[150px]">
-                  <p className="text-gray-700 truncate">{load.pickupAddress}</p>
-                  <p className="text-xs text-gray-400">{formatDate(load.pickupDate)}</p>
-                </td>
-                <td className="px-4 py-3 max-w-[150px]">
-                  <p className="text-gray-700 truncate">{load.deliveryAddress}</p>
-                  <p className="text-xs text-gray-400">{formatDate(load.deliveryDate)}</p>
-                </td>
-                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                  {load.unitNumber ?? <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {load.miles != null ? (
-                    <span className="text-gray-700">{load.miles.toLocaleString()} mi</span>
-                  ) : (
-                    <span className="text-gray-300">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                  {load.vehicleRequired ?? <span className="text-gray-300">—</span>}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[load.status] ?? "bg-gray-100 text-gray-600"}`}>
-                    {STATUS_LABELS[load.status] ?? load.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                      title="Notes"
-                    >
-                      <MessageSquare size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(load)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(load.id)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <AddLoadModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSaved={() => qc.invalidateQueries({ queryKey: ["loads"] })}
-        load={editLoad}
-      />
-
-      {notesLoad && (
-        <LoadNotesPanel load={notesLoad} onClose={() => setNotesLoad(null)} />
-      )}
-    </div>
+      <AddLoadModal open={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => { qc.invalidateQueries({ queryKey: ["loads"] }); setModalOpen(false); }} load={editLoad} />
+      {notesLoad && <LoadNotesPanel load={notesLoad} onClose={() => setNotesLoad(null)} />}
+    </>
   );
 }

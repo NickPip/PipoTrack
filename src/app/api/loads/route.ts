@@ -72,6 +72,7 @@ export async function GET() {
       bolUrls: true,
       podUrl: true,
       createdAt: true,
+      _count: { select: { notes: true } },
     },
   });
 
@@ -101,6 +102,7 @@ export async function GET() {
     dispatcherName: l.dispatcherId ? (userMap[l.dispatcherId] ?? null) : null,
     trackingName: l.trackingId ? (userMap[l.trackingId] ?? null) : null,
     unitNumber: l.unitId ? (unitMap[l.unitId] ?? null) : null,
+    notesCount: l._count.notes,
   }));
 
   return NextResponse.json(result);

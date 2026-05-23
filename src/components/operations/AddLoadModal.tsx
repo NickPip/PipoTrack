@@ -87,6 +87,7 @@ export interface LoadRow {
   rcUrl?: string | null;
   bolUrls?: string[] | null;
   podUrl?: string | null;
+  notesCount?: number;
   createdAt: string;
 }
 

@@ -1,114 +1,71 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, FileText, ChevronDown, Search, ReceiptText, MessageSquare } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Eye, FileText, ChevronDown } from "lucide-react";
+import PageTable, { TD, TD_MONO, Dim, Pill, StackCell, Avatar, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import NotesBtn from "@/components/operations/NotesBtn";
 import type { LoadRow } from "@/components/operations/AddLoadModal";
 import LoadNotesPanel, { type LoadSummary } from "@/components/operations/LoadNotesPanel";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ── Status config ─────────────────────────────────────────────────────────────
 
-const STATUS_FILTER_OPTIONS = [
-  { value: "PENDING", label: "Pending" },
-  { value: "DISPATCHED_TO_PICKUP", label: "Dispatched to Pickup" },
-  { value: "ONSITE_FOR_PICKUP", label: "OnSite for Pickup" },
-  { value: "LOADED_AND_DELIVERING", label: "Loaded and Delivering" },
-  { value: "ONSITE_FOR_DELIVERY", label: "OnSite for Delivery" },
-  { value: "DELIVERED", label: "Delivered" },
-  { value: "CANCELED", label: "Canceled" },
+const LOAD_STATUS_OPTIONS = [
+  { value: "PENDING",               label: "Pending"     },
+  { value: "DISPATCHED_TO_PICKUP",  label: "Dispatched"  },
+  { value: "ONSITE_FOR_PICKUP",     label: "At Pickup"   },
+  { value: "LOADED_AND_DELIVERING", label: "In Transit"  },
+  { value: "ONSITE_FOR_DELIVERY",   label: "At Delivery" },
+  { value: "DELIVERED",             label: "Delivered"   },
+  { value: "CANCELED",              label: "Canceled"    },
 ];
 
-const PAYMENT_FILTER_OPTIONS = [
-  { value: "PAID", label: "Paid" },
-  { value: "UNPAID", label: "Unpaid" },
+type StatusVariant = "dispatched" | "atPickup" | "inTransit" | "delivered" | "delayed";
+const STATUS_MAP: Record<string, { label: string; variant: StatusVariant }> = {
+  PENDING:               { label: "Pending",     variant: "dispatched" },
+  DISPATCHED_TO_PICKUP:  { label: "Dispatched",  variant: "dispatched" },
+  ONSITE_FOR_PICKUP:     { label: "At Pickup",   variant: "atPickup"   },
+  LOADED_AND_DELIVERING: { label: "In Transit",  variant: "inTransit"  },
+  ONSITE_FOR_DELIVERY:   { label: "At Delivery", variant: "atPickup"   },
+  DELIVERED:             { label: "Delivered",   variant: "delivered"  },
+  CANCELED:              { label: "Canceled",    variant: "delayed"    },
+};
+
+const PAYMENT_OPTIONS = [
+  { value: "PAID",    label: "Paid"    },
+  { value: "UNPAID",  label: "Unpaid"  },
   { value: "PENDING", label: "Pending" },
 ];
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Pending",
-  DISPATCHED_TO_PICKUP: "Dispatched to Pickup",
-  ONSITE_FOR_PICKUP: "OnSite for Pickup",
-  LOADED_AND_DELIVERING: "Loaded and Delivering",
-  ONSITE_FOR_DELIVERY: "OnSite for Delivery",
-  DELIVERED: "Delivered",
-  CANCELED: "Canceled",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-yellow-50 text-yellow-700",
-  DISPATCHED_TO_PICKUP: "bg-blue-50 text-blue-700",
-  ONSITE_FOR_PICKUP: "bg-purple-50 text-purple-700",
-  LOADED_AND_DELIVERING: "bg-blue-50 text-blue-700",
-  ONSITE_FOR_DELIVERY: "bg-orange-50 text-orange-700",
-  DELIVERED: "bg-green-50 text-green-700",
-  CANCELED: "bg-red-50 text-red-500",
-};
-
-const PAYMENT_LABELS: Record<string, string> = {
-  PAID: "Paid",
-  UNPAID: "Unpaid",
-  PENDING: "Pending",
-};
-
-const PAYMENT_COLORS: Record<string, string> = {
-  PAID: "bg-green-50 text-green-700",
-  UNPAID: "bg-red-50 text-red-500",
-  PENDING: "bg-yellow-50 text-yellow-700",
-};
-
-const FACTORING_LABELS: Record<string, string> = {
-  YES: "Yes",
-  NO: "No",
-  WARNING: "Warning",
-};
-
-const FACTORING_COLORS: Record<string, string> = {
-  YES: "bg-green-50 text-green-700",
-  NO: "bg-red-50 text-red-500",
-  WARNING: "bg-yellow-50 text-yellow-700",
-};
 
 const FACTORING_OPTIONS = [
-  { value: "YES", label: "Yes" },
-  { value: "NO", label: "No" },
+  { value: "YES",     label: "Yes"     },
+  { value: "NO",      label: "No"      },
   { value: "WARNING", label: "Warning" },
 ];
 
-const PAYMENT_OPTIONS = [
-  { value: "PAID", label: "Paid" },
-  { value: "UNPAID", label: "Unpaid" },
+const FIN_FILTER_OPTIONS = [
+  { value: "PAID",    label: "Paid"    },
+  { value: "UNPAID",  label: "Unpaid"  },
+  { value: "PENDING", label: "Pending" },
 ];
 
-// ─── Inline Dropdown ──────────────────────────────────────────────────────────
+// ── Inline editable dropdown ──────────────────────────────────────────────────
 
-interface InlineDropdownProps {
+type PillVariant = "green" | "red" | "amber" | "gray";
+
+const PAYMENT_VARIANT: Record<string, PillVariant> = { PAID: "green", UNPAID: "red", PENDING: "amber" };
+const FACTORING_VARIANT: Record<string, PillVariant> = { YES: "green", NO: "red", WARNING: "amber" };
+
+interface InlinePillDropdownProps {
   value: string | null | undefined;
   options: { value: string; label: string }[];
-  labelMap: Record<string, string>;
-  colorMap: Record<string, string>;
+  variantMap: Record<string, PillVariant>;
   emptyLabel?: string;
-  onChange: (val: string | null) => void;
+  onChange: (val: string) => void;
   disabled?: boolean;
 }
 
-function InlineDropdown({
-  value,
-  options,
-  labelMap,
-  colorMap,
-  emptyLabel = "—",
-  onChange,
-  disabled,
-}: InlineDropdownProps) {
+function InlinePillDropdown({ value, options, variantMap, emptyLabel = "—", onChange, disabled }: InlinePillDropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -120,59 +77,42 @@ function InlineDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const label = value ? (labelMap[value] ?? value) : emptyLabel;
-  const color = value ? (colorMap[value] ?? "bg-gray-100 text-gray-500") : "";
+  const label   = value ? (options.find(o => o.value === value)?.label ?? value) : emptyLabel;
+  const variant = value ? (variantMap[value] ?? "gray") : "gray";
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
       <button
-        onClick={() => !disabled && setOpen((v) => !v)}
+        onClick={() => !disabled && setOpen(v => !v)}
         disabled={disabled}
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
-          value ? color : "text-gray-400"
-        } ${disabled ? "cursor-default" : "cursor-pointer hover:opacity-80"}`}
+        style={{ background: "none", border: "none", padding: 0, cursor: disabled ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 3 }}
       >
-        {label}
-        {!disabled && <ChevronDown size={10} className="opacity-60" />}
+        <Pill label={label} variant={variant} />
+        {!disabled && (
+          <ChevronDown size={11} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+        )}
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-50 min-w-[120px]">
-          {options.map((opt) => (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.10)", padding: "4px 0", zIndex: 50, minWidth: 120 }}>
+          {options.map(opt => (
             <button
               key={opt.value}
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
-              className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-gray-50 transition-colors ${
-                value === opt.value ? "font-medium" : ""
-              }`}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              style={{ width: "100%", textAlign: "left", padding: "6px 10px", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-soft)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
             >
-              <span
-                className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                  colorMap[opt.value] ?? "bg-gray-100 text-gray-500"
-                }`}
-              >
-                {opt.label}
-              </span>
+              <Pill label={opt.label} variant={variantMap[opt.value] ?? "gray"} />
             </button>
           ))}
-          {value && (
-            <button
-              onClick={() => { onChange(null); setOpen(false); }}
-              className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
-            >
-              Clear
-            </button>
-          )}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function fetchLoads(): Promise<LoadRow[]> {
   const res = await fetch("/api/loads");
@@ -180,14 +120,28 @@ async function fetchLoads(): Promise<LoadRow[]> {
   return res.json();
 }
 
+function parseAddress(addr: string) {
+  const match = addr.match(/\b(\d{5})(-\d{4})?\b/);
+  if (match) return { main: addr.replace(match[0], "").replace(/,\s*$/, "").trim(), zip: match[1] };
+  return { main: addr, zip: "" };
+}
+
+function fmtDate(value: string) {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
   const qc = useQueryClient();
   const { data: loads = [], isLoading } = useQuery({ queryKey: ["loads"], queryFn: fetchLoads });
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [search,        setSearch]        = useState("");
+  const [statusFilter,  setStatusFilter]  = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
-  const [notesLoad, setNotesLoad] = useState<LoadSummary | null>(null);
+  const [notesLoad,     setNotesLoad]     = useState<LoadSummary | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Record<string, unknown> }) => {
@@ -203,7 +157,7 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
       await qc.cancelQueries({ queryKey: ["loads"] });
       const prev = qc.getQueryData<LoadRow[]>(["loads"]);
       qc.setQueryData<LoadRow[]>(["loads"], (old = []) =>
-        old.map((l) => (l.id === id ? { ...l, ...patch } : l))
+        old.map(l => (l.id === id ? { ...l, ...patch } : l))
       );
       return { prev };
     },
@@ -213,7 +167,7 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
     onSettled: () => qc.invalidateQueries({ queryKey: ["loads"] }),
   });
 
-  const filtered = loads.filter((l) => {
+  const filtered = loads.filter(l => {
     const q = search.toLowerCase();
     const matchSearch =
       String(l.loadNumber).includes(search) ||
@@ -223,230 +177,124 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
       (l.trackingName ?? "").toLowerCase().includes(q) ||
       l.pickupAddress.toLowerCase().includes(q) ||
       l.deliveryAddress.toLowerCase().includes(q);
-    const matchStatus = statusFilter === "all" || l.status === statusFilter;
+    const matchStatus  = statusFilter  === "all" || l.status          === statusFilter;
     const matchPayment = paymentFilter === "all" || l.financialStatus === paymentFilter;
     return matchSearch && matchStatus && matchPayment;
   });
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Accounting</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{loads.length} total loads</p>
-        </div>
-      </div>
+    <>
+      <PageTable
+        breadcrumb={["Accounting"]}
+        title="Accounting"
+        subtitle="Payment and factoring status for all loads."
+        count={loads.length}
+        isLoading={isLoading}
+        search={search}
+        onSearchChange={setSearch}
+        filterChips={[
+          { label: "Status",  value: statusFilter,  options: LOAD_STATUS_OPTIONS, onChange: setStatusFilter  },
+          { label: "Payment", value: paymentFilter, options: FIN_FILTER_OPTIONS,  onChange: setPaymentFilter },
+        ]}
+        columns={[
+          { label: "Load #",      width: 80      },
+          { label: "Ref #",       width: 110     },
+          { label: "Broker"                      },
+          { label: "Dispatcher"                  },
+          { label: "Origin"                      },
+          { label: "",            width: 18      },
+          { label: "Destination"                 },
+          { label: "Unit",        width: 90      },
+          { label: "Status"                      },
+          { label: "Factoring"                   },
+          { label: "Payment"                     },
+          { label: "",            width: 80      },
+          { label: "",            width: 80      },
+        ]}
+        rows={filtered}
+        rowKey={l => l.id}
+        emptyMessage="No loads found"
+        emptyBody="Try adjusting your search or filters."
+        renderCells={(load, isLast) => {
+          const nb       = isLast ? "none" : undefined;
+          const pickup   = parseAddress(load.pickupAddress);
+          const delivery = parseAddress(load.deliveryAddress);
+          const statusCfg = STATUS_MAP[load.status] ?? { label: load.status, variant: "dispatched" as StatusVariant };
+          return (
+            <>
+              <td style={{ ...TD_MONO, ...FIRST_TD, borderBottom: nb }}>#{load.loadNumber}</td>
+              <td style={{ ...TD_MONO, color: "var(--ink-3)", borderBottom: nb }}>{load.brokerReference ?? <Dim />}</td>
+              <td style={{ ...TD, borderBottom: nb, whiteSpace: "nowrap" }}>{load.broker}</td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                {load.dispatcherName
+                  ? <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={load.dispatcherName} /><span style={{ whiteSpace: "nowrap" }}>{load.dispatcherName}</span></div>
+                  : <Dim />}
+              </td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                <StackCell top={pickup.main} topSub={pickup.zip || undefined} sub={fmtDate(load.pickupDate)} />
+              </td>
+              <td style={{ padding: 0, width: 18, verticalAlign: "middle", color: "var(--ink-3)", textAlign: "center", borderBottom: isLast ? "none" : "1px solid var(--line)" }}>→</td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                <StackCell top={delivery.main} topSub={delivery.zip || undefined} sub={fmtDate(load.deliveryDate)} />
+              </td>
+              <td style={{ ...TD, borderBottom: nb }}>{load.unitNumber ?? <Dim />}</td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                <Pill label={statusCfg.label} variant={statusCfg.variant} />
+              </td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                <InlinePillDropdown
+                  value={load.factoringStatus}
+                  options={FACTORING_OPTIONS}
+                  variantMap={FACTORING_VARIANT}
+                  emptyLabel="—"
+                  disabled={!canEdit}
+                  onChange={val => updateMutation.mutate({ id: load.id, patch: { factoringStatus: val } })}
+                />
+              </td>
+              <td style={{ ...TD, borderBottom: nb }}>
+                <InlinePillDropdown
+                  value={load.financialStatus}
+                  options={PAYMENT_OPTIONS}
+                  variantMap={PAYMENT_VARIANT}
+                  emptyLabel="Unpaid"
+                  disabled={!canEdit}
+                  onChange={val => updateMutation.mutate({ id: load.id, patch: { financialStatus: val } })}
+                />
+              </td>
+              <td style={{ ...TD, borderBottom: nb, textAlign: "center" }}>
+                <NotesBtn count={load.notesCount ?? 0} onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })} />
+              </td>
+              <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                  <IconBtn title="View documents" onClick={() => {
+                    const docs = [load.rcUrl, ...(load.bolUrls ?? []), load.podUrl].filter(Boolean);
+                    if (docs.length) window.open(docs[0]!, "_blank");
+                  }}>
+                    <FileText size={14} />
+                  </IconBtn>
+                  <IconBtn title="View load"><Eye size={14} /></IconBtn>
+                </div>
+              </td>
+            </>
+          );
+        }}
+      />
 
-      {/* Search + two filter dropdowns */}
-      <div className="flex gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <Input
-            className="pl-9"
-            placeholder="Search by load #, broker, dispatcher, tracking ID, driver, or address..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="All Load Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Load Statuses</SelectItem>
-            {STATUS_FILTER_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All Payment" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Payment</SelectItem>
-            {PAYMENT_FILTER_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {notesLoad && <LoadNotesPanel load={notesLoad} onClose={() => setNotesLoad(null)} />}
+    </>
+  );
+}
 
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Load #</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Broker Ref</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Broker</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Dispatcher</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Origin</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Destination</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Unit</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Factoring</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Payment</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i} className="border-b border-gray-50">
-                <td className="px-4 py-3"><Skeleton className="h-4 w-12" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-                <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-                <td className="px-4 py-3" />
-              </tr>
-            ))}
-            {!isLoading && filtered.length === 0 && (
-              <tr>
-                <td colSpan={11} className="px-4 py-14 text-center">
-                  <ReceiptText size={28} className="mx-auto text-gray-200 mb-2" />
-                  <p className="text-sm text-gray-400">No loads found</p>
-                </td>
-              </tr>
-            )}
-            {filtered.map((load, i) => (
-              <tr
-                key={load.id}
-                className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${
-                  i === filtered.length - 1 ? "border-0" : ""
-                }`}
-              >
-                {/* Load # */}
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <p className="font-medium text-gray-900">#{load.loadNumber}</p>
-                </td>
-
-                {/* Broker Ref */}
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {load.brokerReference ? (
-                    <p className="text-gray-700">{load.brokerReference}</p>
-                  ) : (
-                    <span className="text-gray-300">—</span>
-                  )}
-                </td>
-
-                {/* Broker */}
-                <td className="px-4 py-3">
-                  <p className="text-gray-900">{load.broker}</p>
-                </td>
-
-                {/* Dispatcher */}
-                <td className="px-4 py-3">
-                  <p className="text-gray-700">{load.dispatcherName ?? <span className="text-gray-300">—</span>}</p>
-                </td>
-
-                {/* Origin */}
-                <td className="px-4 py-3 max-w-[160px]">
-                  <p className="text-gray-700 truncate">{load.pickupAddress}</p>
-                </td>
-
-                {/* Destination */}
-                <td className="px-4 py-3 max-w-[160px]">
-                  <p className="text-gray-700 truncate">{load.deliveryAddress}</p>
-                </td>
-
-                {/* Unit */}
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {load.unitNumber ? (
-                    <p className="text-gray-700">{load.unitNumber}</p>
-                  ) : (
-                    <span className="text-gray-300">—</span>
-                  )}
-                </td>
-
-                {/* Status */}
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      STATUS_COLORS[load.status] ?? "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {STATUS_LABELS[load.status] ?? load.status}
-                  </span>
-                </td>
-
-                {/* Factoring */}
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <InlineDropdown
-                    value={load.factoringStatus}
-                    options={FACTORING_OPTIONS}
-                    labelMap={FACTORING_LABELS}
-                    colorMap={FACTORING_COLORS}
-                    emptyLabel="—"
-                    disabled={!canEdit}
-                    onChange={(val) =>
-                      updateMutation.mutate({
-                        id: load.id,
-                        patch: { factoringStatus: val },
-                      })
-                    }
-                  />
-                </td>
-
-                {/* Payment */}
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <InlineDropdown
-                    value={load.financialStatus}
-                    options={PAYMENT_OPTIONS}
-                    labelMap={PAYMENT_LABELS}
-                    colorMap={PAYMENT_COLORS}
-                    emptyLabel="Unpaid"
-                    disabled={!canEdit}
-                    onChange={(val) =>
-                      updateMutation.mutate({
-                        id: load.id,
-                        patch: { financialStatus: val ?? "UNPAID" },
-                      })
-                    }
-                  />
-                </td>
-
-                {/* Actions */}
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                      title="Notes"
-                    >
-                      <MessageSquare size={14} />
-                    </button>
-                    <button
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                      title="View load"
-                    >
-                      <Eye size={14} />
-                    </button>
-                    <button
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                      title="View documents"
-                      onClick={() => {
-                        const docs = [load.rcUrl, ...(load.bolUrls ?? []), load.podUrl].filter(Boolean);
-                        if (docs.length) window.open(docs[0]!, "_blank");
-                      }}
-                    >
-                      <FileText size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {notesLoad && (
-        <LoadNotesPanel load={notesLoad} onClose={() => setNotesLoad(null)} />
-      )}
-    </div>
+function IconBtn({ onClick, title, children }: { onClick?: () => void; title?: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{ width: 28, height: 28, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--ink-3)", transition: "background 0.14s ease, color 0.14s ease" }}
+      onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-soft)"; e.currentTarget.style.color = "var(--ink-1)"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-3)"; }}
+    >
+      {children}
+    </button>
   );
 }
