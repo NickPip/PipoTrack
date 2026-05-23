@@ -7,8 +7,17 @@ import { z } from "zod";
 
 const schema = z.object({
   name: z.string().min(1),
+  ownerName: z.string().nullable().optional(),
   email: z.email(),
   phone: z.string().min(1),
+  address: z.string().nullable().optional(),
+  ssnFein: z.string().nullable().optional(),
+  ssnFeinDocUrl: z.string().nullable().optional(),
+  ownerDocUrl: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  bankInfoUrl: z.string().nullable().optional(),
+  w9Url: z.string().nullable().optional(),
+  insuranceUrl: z.string().nullable().optional(),
 });
 
 export async function GET() {
@@ -19,7 +28,14 @@ export async function GET() {
   }
 
   const owners = await prisma.owner.findMany({ orderBy: { name: "asc" } });
-  return NextResponse.json(owners);
+  const ownerIds = owners.map((o) => o.id);
+  const units = ownerIds.length
+    ? await prisma.unit.findMany({ where: { ownerId: { in: ownerIds } }, select: { ownerId: true } })
+    : [];
+  const countMap: Record<string, number> = {};
+  units.forEach((u) => { if (u.ownerId) countMap[u.ownerId] = (countMap[u.ownerId] ?? 0) + 1; });
+
+  return NextResponse.json(owners.map((o) => ({ ...o, unitCount: countMap[o.id] ?? 0 })));
 }
 
 export async function POST(req: NextRequest) {

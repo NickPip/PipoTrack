@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -20,6 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FormField } from "@/components/shared/FormField";
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
 
 const schema = z.object({
   name: z.string().min(1, "Required"),
@@ -35,6 +37,8 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface UserRow {
   id: string;
@@ -64,8 +68,11 @@ const ROLES = [
   { value: "ACCOUNTING", label: "Accounting" },
 ];
 
+// ─── Modal ────────────────────────────────────────────────────────────────────
+
 export default function UserModal({ open, onClose, onSaved, user }: UserModalProps) {
   const isEdit = !!user;
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const {
     register,
@@ -73,7 +80,7 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
     setValue,
     watch,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { password: "", role: "DISPATCHER" },
@@ -81,6 +88,7 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
 
   useEffect(() => {
     if (open) {
+      setApiError(null);
       reset({
         name: user?.name ?? "",
         surname: user?.surname ?? "",
@@ -96,7 +104,13 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
     }
   }, [open, user, reset]);
 
+  function handleClose() {
+    if (isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
+    onClose();
+  }
+
   async function onSubmit(data: FormData) {
+    setApiError(null);
     const body: Partial<FormData> = { ...data };
     if (isEdit && !data.password) delete body.password;
 
@@ -106,16 +120,20 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
       body: JSON.stringify(body),
     });
 
-    if (res.ok) {
-      onSaved();
-      onClose();
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setApiError(json.error ?? "Something went wrong. Please try again.");
+      return;
     }
+
+    onSaved();
+    onClose();
   }
 
   const roleValue = watch("role");
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit User" : "Add User"}</DialogTitle>
@@ -123,38 +141,31 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>First Name</Label>
-              <Input {...register("name")} placeholder="John" />
-              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Last Name</Label>
+            <FormField label="First Name" error={errors.name?.message} required>
+              <Input {...register("name")} placeholder="John" autoFocus />
+            </FormField>
+            <FormField label="Last Name" error={errors.surname?.message} required>
               <Input {...register("surname")} placeholder="Doe" />
-              {errors.surname && <p className="text-xs text-red-500">{errors.surname.message}</p>}
-            </div>
+            </FormField>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Email</Label>
+          <FormField label="Email" error={errors.email?.message} required>
             <Input {...register("email")} type="email" placeholder="john@company.com" />
-            {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
-          </div>
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label>{isEdit ? "New Password (leave blank to keep)" : "Password"}</Label>
+          <FormField
+            label={isEdit ? "New Password (leave blank to keep)" : "Password"}
+            error={errors.password?.message}
+            required={!isEdit}
+          >
             <Input {...register("password")} type="password" placeholder="••••••••" />
-            {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
-          </div>
+          </FormField>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>ID Number</Label>
+            <FormField label="ID Number" error={errors.idNumber?.message} required>
               <Input {...register("idNumber")} placeholder="ID001" />
-              {errors.idNumber && <p className="text-xs text-red-500">{errors.idNumber.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Role</Label>
+            </FormField>
+            <FormField label="Role" required>
               <Select value={roleValue} onValueChange={(v) => setValue("role", v as FormData["role"])}>
                 <SelectTrigger>
                   <SelectValue />
@@ -165,33 +176,34 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Phone</Label>
+            <FormField label="Phone" error={errors.phoneNumber?.message} required>
               <Input {...register("phoneNumber")} placeholder="+1 555 0000" />
-              {errors.phoneNumber && <p className="text-xs text-red-500">{errors.phoneNumber.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Phone 2 (optional)</Label>
+            </FormField>
+            <FormField label="Phone 2">
               <Input {...register("phone2")} placeholder="+1 555 0001" />
-            </div>
+            </FormField>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Address (optional)</Label>
+          <FormField label="Address">
             <Input {...register("address")} placeholder="123 Main St" />
-          </div>
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label>Emergency Contact (optional)</Label>
+          <FormField label="Emergency Contact">
             <Input {...register("emergencyContact")} placeholder="Jane Doe +1 555 9999" />
-          </div>
+          </FormField>
+
+          {apiError && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-700">
+              {apiError}
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
             <Button type="submit" className="bg-black text-white hover:bg-gray-800" disabled={isSubmitting}>
               {isSubmitting ? "Saving…" : isEdit ? "Save Changes" : "Add User"}
             </Button>

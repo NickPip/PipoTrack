@@ -29,9 +29,15 @@ export default function OwnersTable() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["owners"] }),
   });
 
-  const filtered = owners.filter((o) =>
-    `${o.name} ${o.email} ${o.phone}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = owners.filter((o) => {
+    const q = search.toLowerCase();
+    return (
+      o.name.toLowerCase().includes(q) ||
+      (o.ownerName ?? "").toLowerCase().includes(q) ||
+      o.email.toLowerCase().includes(q) ||
+      o.phone.toLowerCase().includes(q)
+    );
+  });
 
   function handleEdit(owner: OwnerRow) {
     setEditOwner(owner);
@@ -46,6 +52,8 @@ export default function OwnersTable() {
   function handleDelete(id: string) {
     if (confirm("Delete this owner?")) deleteMutation.mutate(id);
   }
+
+  const COLS = 6;
 
   return (
     <div>
@@ -62,28 +70,30 @@ export default function OwnersTable() {
       <FilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by name, email, or phone…"
+        searchPlaceholder="Search by company, owner name, email, or phone…"
       />
 
       <div className="border border-gray-100 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Company Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Owner Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone Number</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Units</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">Loading…</td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-400">No owners found</td>
+                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">No owners found</td>
               </tr>
             )}
             {filtered.map((owner, i) => (
@@ -92,8 +102,20 @@ export default function OwnersTable() {
                 className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i === filtered.length - 1 ? "border-0" : ""}`}
               >
                 <td className="px-4 py-3 font-medium text-gray-900">{owner.name}</td>
-                <td className="px-4 py-3 text-gray-600">{owner.email}</td>
+                <td className="px-4 py-3 text-gray-600">
+                  {owner.ownerName ?? <span className="text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-3 text-gray-600">{owner.phone}</td>
+                <td className="px-4 py-3 text-gray-600">{owner.email}</td>
+                <td className="px-4 py-3 text-gray-600">
+                  {owner.unitCount ? (
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      {owner.unitCount}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button

@@ -7,11 +7,22 @@ import { z } from "zod";
 
 const schema = z.object({
   name: z.string().min(1),
-  vehicleType: z.enum(["Sprinter", "Cargo Van", "Small Straight", "Large Straight"]),
-  currentZip: z.string().min(1),
-  searchRadius: z.coerce.number().int().positive(),
+  vehicleType: z.string().nullable().optional(),
+  currentZip: z.string().nullable().optional(),
+  searchRadius: z.coerce.number().int().positive().nullable().optional(),
   telegramId: z.string().nullable().optional(),
   unitId: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  dlNumber: z.string().nullable().optional(),
+  dlDocumentUrl: z.string().nullable().optional(),
+  citizenshipType: z.string().nullable().optional(),
+  cleanBackground: z.boolean().nullable().optional(),
+  emergencyContact: z.string().nullable().optional(),
+  drivingRecordUrl: z.string().nullable().optional(),
+  twicTsaUrl: z.string().nullable().optional(),
+  appUsername: z.string().nullable().optional(),
+  appPassword: z.string().nullable().optional(),
 });
 
 export async function PUT(req: NextRequest, ctx: RouteContext<"/api/drivers/[id]">) {
@@ -28,10 +39,10 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/drivers/[id]
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { telegramId, unitId, ...data } = parsed.data;
+  const { unitId, ...rest } = parsed.data;
   const driver = await prisma.driver.update({
     where: { id },
-    data: { ...data, telegramId: telegramId ?? null, unitId: unitId ?? null },
+    data: { ...rest, unitId: unitId ?? null },
   });
 
   return NextResponse.json(driver);

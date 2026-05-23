@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Driver" ALTER COLUMN "vehicleType" DROP NOT NULL,
+ALTER COLUMN "currentZip" DROP NOT NULL,
+ALTER COLUMN "searchRadius" DROP NOT NULL;

@@ -7,17 +7,18 @@ import { Button } from "@/components/ui/button";
 import FilterBar from "@/components/shared/FilterBar";
 import DriverModal, { type DriverRow } from "@/components/recruiting/DriverModal";
 
-const TYPE_OPTIONS = [
-  { value: "Sprinter", label: "Sprinter" },
-  { value: "Cargo Van", label: "Cargo Van" },
-  { value: "Small Straight", label: "Small Straight" },
-  { value: "Large Straight", label: "Large Straight" },
-];
-
 async function fetchDrivers(): Promise<DriverRow[]> {
   const res = await fetch("/api/drivers");
   if (!res.ok) throw new Error("Failed to fetch drivers");
   return res.json();
+}
+
+function CleanBadge({ value }: { value: boolean | null | undefined }) {
+  if (value === true)
+    return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Yes</span>;
+  if (value === false)
+    return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">No</span>;
+  return <span className="text-gray-300">—</span>;
 }
 
 export default function DriversTable() {
@@ -25,7 +26,6 @@ export default function DriversTable() {
   const { data: drivers = [], isLoading } = useQuery({ queryKey: ["drivers"], queryFn: fetchDrivers });
 
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editDriver, setEditDriver] = useState<DriverRow | null>(null);
 
@@ -38,10 +38,12 @@ export default function DriversTable() {
   });
 
   const filtered = drivers.filter((d) => {
-    const matchSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
-      d.currentZip.includes(search);
-    const matchType = typeFilter === "all" || d.vehicleType === typeFilter;
-    return matchSearch && matchType;
+    const q = search.toLowerCase();
+    return (
+      d.name.toLowerCase().includes(q) ||
+      (d.phone ?? "").toLowerCase().includes(q) ||
+      (d.dlNumber ?? "").toLowerCase().includes(q)
+    );
   });
 
   function handleEdit(driver: DriverRow) {
@@ -58,6 +60,8 @@ export default function DriversTable() {
     if (confirm("Delete this driver?")) deleteMutation.mutate(id);
   }
 
+  const COLS = 7;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -73,35 +77,31 @@ export default function DriversTable() {
       <FilterBar
         search={search}
         onSearchChange={setSearch}
-        filterValue={typeFilter}
-        onFilterChange={setTypeFilter}
-        filterOptions={TYPE_OPTIONS}
-        filterPlaceholder="All Types"
-        searchPlaceholder="Search by name or ZIP…"
+        searchPlaceholder="Search by name, phone, or D/L number…"
       />
 
       <div className="border border-gray-100 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Vehicle Type</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">ZIP</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Radius</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Unit</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Telegram</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Full Name</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone Number</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Assigned Unit</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">DL Number</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Citizenship</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Clean Background</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">Loading…</td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">No drivers found</td>
+                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">No drivers found</td>
               </tr>
             )}
             {filtered.map((driver, i) => (
@@ -110,14 +110,18 @@ export default function DriversTable() {
                 className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i === filtered.length - 1 ? "border-0" : ""}`}
               >
                 <td className="px-4 py-3 font-medium text-gray-900">{driver.name}</td>
-                <td className="px-4 py-3 text-gray-600">{driver.vehicleType}</td>
-                <td className="px-4 py-3 text-gray-600">{driver.currentZip}</td>
-                <td className="px-4 py-3 text-gray-600">{driver.searchRadius} mi</td>
+                <td className="px-4 py-3 text-gray-600">{driver.phone ?? <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-3 text-gray-600">
                   {driver.unit?.unitNumber ?? <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3 text-gray-600">
-                  {driver.telegramId ?? <span className="text-gray-300">—</span>}
+                  {driver.dlNumber ?? <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 text-gray-600">
+                  {driver.citizenshipType ?? <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3">
+                  <CleanBadge value={driver.cleanBackground} />
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">

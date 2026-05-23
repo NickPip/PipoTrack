@@ -47,10 +47,19 @@ model User {
 }
 
 model Owner {
-  id    String @id @default(cuid())
-  name  String
-  email String
-  phone String
+  id            String  @id @default(cuid())
+  name          String
+  ownerName     String?
+  email         String
+  phone         String
+  address       String?
+  ssnFein       String?
+  ssnFeinDocUrl String?
+  ownerDocUrl   String?
+  company       String?
+  bankInfoUrl   String?
+  w9Url         String?
+  insuranceUrl  String?
 }
 
 model Unit {
@@ -72,15 +81,26 @@ model Unit {
 }
 
 model Driver {
-  id           String  @id @default(cuid())
-  name         String
-  vehicleType  String
-  currentZip   String
-  searchRadius Int
-  telegramId   String?
-  unitId       String?
-  unit         Unit?   @relation(fields: [unitId], references: [id])
-  bids         Bid[]
+  id               String   @id @default(cuid())
+  name             String
+  phone            String?
+  address          String?
+  dlNumber         String?
+  dlDocumentUrl    String?
+  citizenshipType  String?
+  cleanBackground  Boolean?
+  emergencyContact String?
+  drivingRecordUrl String?
+  twicTsaUrl       String?
+  appUsername      String?
+  appPassword      String?
+  vehicleType      String?
+  currentZip       String?
+  searchRadius     Int?
+  telegramId       String?
+  unitId           String?
+  unit             Unit?    @relation(fields: [unitId], references: [id])
+  bids             Bid[]
 }
 
 model Load {

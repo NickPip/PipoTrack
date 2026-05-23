@@ -7,8 +7,17 @@ import { z } from "zod";
 
 const schema = z.object({
   name: z.string().min(1),
+  ownerName: z.string().nullable().optional(),
   email: z.email(),
   phone: z.string().min(1),
+  address: z.string().nullable().optional(),
+  ssnFein: z.string().nullable().optional(),
+  ssnFeinDocUrl: z.string().nullable().optional(),
+  ownerDocUrl: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  bankInfoUrl: z.string().nullable().optional(),
+  w9Url: z.string().nullable().optional(),
+  insuranceUrl: z.string().nullable().optional(),
 });
 
 export async function PUT(req: NextRequest, ctx: RouteContext<"/api/owners/[id]">) {

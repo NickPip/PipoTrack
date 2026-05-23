@@ -5,7 +5,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
-import { Info, X, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FormField } from "@/components/shared/FormField";
+import { FileInput } from "@/components/shared/FileInput";
+import { uploadFile } from "@/lib/upload-client";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -96,16 +99,6 @@ async function fetchDrivers(): Promise<DriverOption[]> {
   return data.map((d: DriverOption) => ({ id: d.id, name: d.name, unitId: d.unitId }));
 }
 
-async function uploadFile(file: File, bucket: string): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("bucket", bucket);
-  const res = await fetch("/api/upload", { method: "POST", body: fd });
-  if (!res.ok) throw new Error("Upload failed");
-  const data = await res.json();
-  return data.url as string;
-}
-
 // ─── Multi-select drivers ─────────────────────────────────────────────────────
 
 function DriversMultiSelect({
@@ -150,9 +143,7 @@ function DriversMultiSelect({
         className="w-full flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg text-sm text-left bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
       >
         <span className={selectedNames.length ? "text-gray-900" : "text-gray-400"}>
-          {selectedNames.length
-            ? selectedNames.join(", ")
-            : "Select drivers…"}
+          {selectedNames.length ? selectedNames.join(", ") : "Select drivers…"}
         </span>
         <ChevronDown size={14} className="text-gray-400 shrink-0 ml-2" />
       </button>
@@ -181,96 +172,6 @@ function DriversMultiSelect({
   );
 }
 
-// ─── File input ───────────────────────────────────────────────────────────────
-
-function FileInput({
-  label,
-  multiple,
-  accept,
-  files,
-  existingUrls,
-  onChange,
-  tooltip,
-}: {
-  label: string;
-  multiple?: boolean;
-  accept?: string;
-  files: File[];
-  existingUrls?: string[];
-  onChange: (files: File[]) => void;
-  tooltip?: string;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(e.target.files ?? []);
-    onChange(multiple ? [...files, ...selected] : selected);
-    e.target.value = "";
-  }
-
-  function removeFile(i: number) {
-    onChange(files.filter((_, idx) => idx !== i));
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <Label>{label}</Label>
-        {tooltip && (
-          <div className="group relative">
-            <Info size={13} className="text-gray-400 cursor-help" />
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block w-56 bg-gray-900 text-white text-xs rounded-lg px-2.5 py-1.5 z-50 text-center leading-snug">
-              {tooltip}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div
-        onClick={() => inputRef.current?.click()}
-        className="border-2 border-dashed border-gray-200 rounded-xl p-4 cursor-pointer hover:border-gray-400 transition-colors text-center"
-      >
-        <p className="text-sm text-gray-500">
-          Click to {multiple ? "add files" : "upload"}{" "}
-          <span className="text-black font-medium">Browse</span>
-        </p>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple={multiple}
-          accept={accept}
-          className="hidden"
-          onChange={handleChange}
-        />
-      </div>
-
-      {(existingUrls?.length ?? 0) > 0 && files.length === 0 && (
-        <div className="space-y-1">
-          {existingUrls!.map((url, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs text-gray-500">
-              <span className="truncate">{url.split("/").pop()}</span>
-              <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 shrink-0">view</a>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {files.length > 0 && (
-        <div className="space-y-1">
-          {files.map((f, i) => (
-            <div key={i} className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded-lg px-2.5 py-1.5">
-              <span className="truncate">{f.name}</span>
-              <button type="button" onClick={() => removeFile(i)} className="ml-2 text-gray-400 hover:text-red-500 shrink-0">
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalProps) {
@@ -279,6 +180,7 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
   const [regFiles, setRegFiles] = useState<File[]>([]);
   const [picFiles, setPicFiles] = useState<File[]>([]);
   const [uploadWarning, setUploadWarning] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const { data: owners = [] } = useQuery({ queryKey: ["owners"], queryFn: fetchOwners, enabled: open });
   const { data: drivers = [] } = useQuery({ queryKey: ["drivers"], queryFn: fetchDrivers, enabled: open });
@@ -290,7 +192,7 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
     watch,
     setValue,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { type: "Sprinter Van", equipment: [], driverIds: [] },
@@ -298,6 +200,8 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
 
   useEffect(() => {
     if (open) {
+      setApiError(null);
+      setUploadWarning(null);
       reset({
         unitNumber: unit?.unitNumber ?? "",
         ownerId: unit?.ownerId ?? "",
@@ -316,11 +220,18 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
       });
       setRegFiles([]);
       setPicFiles([]);
-      setUploadWarning(null);
     }
   }, [open, unit, reset]);
 
+  function handleClose() {
+    const hasFileChanges = regFiles.length > 0 || picFiles.length > 0;
+    if ((isDirty || hasFileChanges) && !window.confirm("You have unsaved changes. Discard them?")) return;
+    setUploadWarning(null);
+    onClose();
+  }
+
   async function onSubmit(data: FormData) {
+    setApiError(null);
     let registrationUrl = unit?.registrationUrl ?? null;
     let pictureUrls: string[] = (unit?.pictureUrls as string[]) ?? [];
     const skipped: string[] = [];
@@ -371,12 +282,14 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
       body: JSON.stringify(body),
     });
 
-    if (res.ok) {
-      onSaved();
-      if (skipped.length === 0) {
-        onClose();
-      }
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setApiError(json.error ?? "Something went wrong. Please try again.");
+      return;
     }
+
+    onSaved();
+    if (skipped.length === 0) onClose();
   }
 
   const typeValue = watch("type");
@@ -388,12 +301,14 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
     const current = equipmentValue as string[];
     setValue(
       "equipment",
-      current.includes(item) ? (current.filter((e) => e !== item) as typeof equipmentValue) : ([...current, item] as typeof equipmentValue)
+      current.includes(item)
+        ? (current.filter((e) => e !== item) as typeof equipmentValue)
+        : ([...current, item] as typeof equipmentValue)
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Unit" : "Add Unit"}</DialogTitle>
@@ -403,13 +318,10 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
 
           {/* Row 1: Unit Number + Owner */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Unit Number *</Label>
-              <Input {...register("unitNumber")} placeholder="U-001" />
-              {errors.unitNumber && <p className="text-xs text-red-500">{errors.unitNumber.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Assign to Owner *</Label>
+            <FormField label="Unit Number" error={errors.unitNumber?.message} required>
+              <Input {...register("unitNumber")} placeholder="U-001" autoFocus />
+            </FormField>
+            <FormField label="Assign to Owner" error={errors.ownerId?.message} required>
               <Select value={ownerIdValue} onValueChange={(v) => setValue("ownerId", v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select owner…" />
@@ -420,13 +332,14 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
                   ))}
                 </SelectContent>
               </Select>
-              {errors.ownerId && <p className="text-xs text-red-500">{errors.ownerId.message}</p>}
-            </div>
+            </FormField>
           </div>
 
-          {/* Vehicle Type — radio buttons */}
+          {/* Vehicle Type — pill buttons */}
           <div className="space-y-2">
-            <Label>Vehicle Type *</Label>
+            <Label>
+              Vehicle Type <span className="text-red-500">*</span>
+            </Label>
             <div className="flex flex-wrap gap-2">
               {VEHICLE_TYPES.map((t) => (
                 <button
@@ -448,40 +361,29 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
 
           {/* Make + Model */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Make *</Label>
+            <FormField label="Make" error={errors.make?.message} required>
               <Input {...register("make")} placeholder="Mercedes-Benz" />
-              {errors.make && <p className="text-xs text-red-500">{errors.make.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Model *</Label>
+            </FormField>
+            <FormField label="Model" error={errors.model?.message} required>
               <Input {...register("model")} placeholder="Sprinter 2500" />
-              {errors.model && <p className="text-xs text-red-500">{errors.model.message}</p>}
-            </div>
+            </FormField>
           </div>
 
           {/* Year + VIN + Plate */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1.5">
-              <Label>Year *</Label>
+            <FormField label="Year" error={errors.year?.message} required>
               <Input {...register("year")} placeholder="2022" />
-              {errors.year && <p className="text-xs text-red-500">{errors.year.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>VIN *</Label>
+            </FormField>
+            <FormField label="VIN" error={errors.vin?.message} required>
               <Input {...register("vin")} placeholder="1FTFW1E5XNFC00000" />
-              {errors.vin && <p className="text-xs text-red-500">{errors.vin.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Plate Number *</Label>
+            </FormField>
+            <FormField label="Plate Number" error={errors.plateNumber?.message} required>
               <Input {...register("plateNumber")} placeholder="ABC-1234" />
-              {errors.plateNumber && <p className="text-xs text-red-500">{errors.plateNumber.message}</p>}
-            </div>
+            </FormField>
           </div>
 
           {/* Assign Drivers */}
-          <div className="space-y-1.5">
-            <Label>Assign Drivers</Label>
+          <FormField label="Assign Drivers">
             <Controller
               control={control}
               name="driverIds"
@@ -494,7 +396,7 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
                 />
               )}
             />
-          </div>
+          </FormField>
 
           {/* File uploads */}
           <div className="grid grid-cols-2 gap-4">
@@ -521,23 +423,20 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
             <Label>Dimensions (inches)</Label>
             <div className="grid grid-cols-3 gap-3">
               {(["length", "width", "height"] as const).map((dim) => (
-                <div key={dim} className="space-y-1.5">
-                  <Label className="text-xs text-gray-500 capitalize">{dim}</Label>
+                <FormField key={dim} label={dim.charAt(0).toUpperCase() + dim.slice(1)} error={errors[dim]?.message} className="space-y-1">
                   <Input
                     {...register(dim, { valueAsNumber: true })}
                     type="number"
                     step="0.1"
                     placeholder="0"
                   />
-                  {errors[dim] && <p className="text-xs text-red-500">{errors[dim]?.message}</p>}
-                </div>
+                </FormField>
               ))}
             </div>
           </div>
 
           {/* Payload */}
-          <div className="space-y-1.5">
-            <Label>Payload (lbs)</Label>
+          <FormField label="Payload (lbs)" error={errors.payload?.message}>
             <Input
               {...register("payload", { valueAsNumber: true })}
               type="number"
@@ -545,8 +444,7 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
               placeholder="e.g. 3500"
               className="max-w-[180px]"
             />
-            {errors.payload && <p className="text-xs text-red-500">{errors.payload.message}</p>}
-          </div>
+          </FormField>
 
           {/* Equipment checkboxes */}
           <div className="space-y-2">
@@ -570,8 +468,14 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
             </div>
           )}
 
+          {apiError && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-700">
+              {apiError}
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => { setUploadWarning(null); onClose(); }}>
+            <Button type="button" variant="outline" onClick={() => { setUploadWarning(null); handleClose(); }}>
               {uploadWarning ? "Close" : "Cancel"}
             </Button>
             <Button

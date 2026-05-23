@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -13,40 +12,53 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { FormField } from "@/components/shared/FormField";
+import { FileInput } from "@/components/shared/FileInput";
+import { uploadFile } from "@/lib/upload-client";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CITIZENSHIP_TYPES = ["Citizen", "Resident", "Green Card", "Paper Process"] as const;
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
 
 const schema = z.object({
   name: z.string().min(1, "Required"),
-  vehicleType: z.enum(["Sprinter", "Cargo Van", "Small Straight", "Large Straight"]),
-  currentZip: z.string().min(1, "Required"),
-  searchRadius: z.number().int().positive("Must be positive"),
-  telegramId: z.string().nullable().optional(),
-  unitId: z.string().nullable().optional(),
+  phone: z.string().min(1, "Required"),
+  address: z.string().min(1, "Required"),
+  dlNumber: z.string().min(1, "Required"),
+  citizenshipType: z.enum(CITIZENSHIP_TYPES, { error: "Required" }),
+  cleanBackground: z.boolean({ error: "Please select Yes or No" }),
+  emergencyContact: z.string().min(1, "Required"),
+  appUsername: z.string().optional(),
+  appPassword: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export interface DriverRow {
   id: string;
   name: string;
-  vehicleType: string;
-  currentZip: string;
-  searchRadius: number;
+  phone?: string | null;
+  address?: string | null;
+  dlNumber?: string | null;
+  dlDocumentUrl?: string | null;
+  citizenshipType?: string | null;
+  cleanBackground?: boolean | null;
+  emergencyContact?: string | null;
+  drivingRecordUrl?: string | null;
+  twicTsaUrl?: string | null;
+  appUsername?: string | null;
+  appPassword?: string | null;
+  vehicleType?: string | null;
+  currentZip?: string | null;
+  searchRadius?: number | null;
   telegramId?: string | null;
   unitId?: string | null;
   unit?: { id: string; unitNumber: string } | null;
-}
-
-interface UnitOption {
-  id: string;
-  unitNumber: string;
 }
 
 interface DriverModalProps {
@@ -56,23 +68,26 @@ interface DriverModalProps {
   driver?: DriverRow | null;
 }
 
-const VEHICLE_TYPES = ["Sprinter", "Cargo Van", "Small Straight", "Large Straight"] as const;
+// ─── Section divider ──────────────────────────────────────────────────────────
 
-async function fetchUnits(): Promise<UnitOption[]> {
-  const res = await fetch("/api/units");
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.map((u: { id: string; unitNumber: string }) => ({ id: u.id, unitNumber: u.unitNumber }));
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-gray-100 pt-5">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">{title}</p>
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
 }
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
 
 export default function DriverModal({ open, onClose, onSaved, driver }: DriverModalProps) {
   const isEdit = !!driver;
-
-  const { data: units = [] } = useQuery({
-    queryKey: ["units"],
-    queryFn: fetchUnits,
-    enabled: open,
-  });
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
+  const [dlFiles, setDlFiles] = useState<File[]>([]);
+  const [drFiles, setDrFiles] = useState<File[]>([]);
+  const [twicFiles, setTwicFiles] = useState<File[]>([]);
 
   const {
     register,
@@ -80,30 +95,70 @@ export default function DriverModal({ open, onClose, onSaved, driver }: DriverMo
     setValue,
     watch,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { vehicleType: "Sprinter" },
   });
 
   useEffect(() => {
     if (open) {
+      setApiError(null);
+      setUploadWarning(null);
+      setDlFiles([]);
+      setDrFiles([]);
+      setTwicFiles([]);
       reset({
         name: driver?.name ?? "",
-        vehicleType: (driver?.vehicleType as FormData["vehicleType"]) ?? "Sprinter",
-        currentZip: driver?.currentZip ?? "",
-        searchRadius: driver?.searchRadius ?? (0 as never),
-        telegramId: driver?.telegramId ?? "",
-        unitId: driver?.unitId ?? null,
+        phone: driver?.phone ?? "",
+        address: driver?.address ?? "",
+        dlNumber: driver?.dlNumber ?? "",
+        citizenshipType: (driver?.citizenshipType as FormData["citizenshipType"]) ?? undefined,
+        cleanBackground: driver?.cleanBackground ?? undefined,
+        emergencyContact: driver?.emergencyContact ?? "",
+        appUsername: driver?.appUsername ?? "",
+        appPassword: driver?.appPassword ?? "",
       });
     }
   }, [open, driver, reset]);
 
+  function handleClose() {
+    const hasFiles = dlFiles.length > 0 || drFiles.length > 0 || twicFiles.length > 0;
+    if ((isDirty || hasFiles) && !window.confirm("You have unsaved changes. Discard them?")) return;
+    onClose();
+  }
+
   async function onSubmit(data: FormData) {
+    setApiError(null);
+    const skipped: string[] = [];
+
+    let dlDocumentUrl = driver?.dlDocumentUrl ?? null;
+    let drivingRecordUrl = driver?.drivingRecordUrl ?? null;
+    let twicTsaUrl = driver?.twicTsaUrl ?? null;
+
+    if (dlFiles.length) {
+      try { dlDocumentUrl = await uploadFile(dlFiles[0], "piptrack_files"); }
+      catch { skipped.push("D/L document"); }
+    }
+    if (drFiles.length) {
+      try { drivingRecordUrl = await uploadFile(drFiles[0], "piptrack_files"); }
+      catch { skipped.push("driving record"); }
+    }
+    if (twicFiles.length) {
+      try { twicTsaUrl = await uploadFile(twicFiles[0], "piptrack_files"); }
+      catch { skipped.push("TWIC/TSA"); }
+    }
+
+    if (skipped.length) {
+      setUploadWarning(`File upload failed for: ${skipped.join(", ")}. Driver saved without those files.`);
+    }
+
     const body = {
       ...data,
-      telegramId: data.telegramId || null,
-      unitId: data.unitId || null,
+      dlDocumentUrl,
+      drivingRecordUrl,
+      twicTsaUrl,
+      appUsername: data.appUsername || null,
+      appPassword: data.appPassword || null,
     };
 
     const res = await fetch(isEdit ? `/api/drivers/${driver!.id}` : "/api/drivers", {
@@ -112,81 +167,162 @@ export default function DriverModal({ open, onClose, onSaved, driver }: DriverMo
       body: JSON.stringify(body),
     });
 
-    if (res.ok) {
-      onSaved();
-      onClose();
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setApiError(json.error ?? "Something went wrong. Please try again.");
+      return;
     }
+
+    onSaved();
+    if (skipped.length === 0) onClose();
   }
 
-  const vehicleTypeValue = watch("vehicleType");
-  const unitIdValue = watch("unitId");
+  const citizenshipValue = watch("citizenshipType");
+  const cleanBgValue = watch("cleanBackground");
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Driver" : "Add Driver"}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label>Name</Label>
-            <Input {...register("name")} placeholder="John Doe" />
-            {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-2">
 
-          <div className="space-y-1.5">
-            <Label>Vehicle Type</Label>
-            <Select value={vehicleTypeValue} onValueChange={(v) => setValue("vehicleType", v as FormData["vehicleType"])}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VEHICLE_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Current ZIP</Label>
-              <Input {...register("currentZip")} placeholder="10001" />
-              {errors.currentZip && <p className="text-xs text-red-500">{errors.currentZip.message}</p>}
+          {/* ── Personal Info ── */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Full Name" error={errors.name?.message} required>
+                <Input {...register("name")} placeholder="John Doe" autoFocus />
+              </FormField>
+              <FormField label="Phone Number" error={errors.phone?.message} required>
+                <Input {...register("phone")} placeholder="+1 555 0000" />
+              </FormField>
             </div>
-            <div className="space-y-1.5">
-              <Label>Search Radius (mi)</Label>
-              <Input {...register("searchRadius", { valueAsNumber: true })} type="number" placeholder="100" />
-              {errors.searchRadius && <p className="text-xs text-red-500">{errors.searchRadius.message}</p>}
+
+            <FormField label="Address" error={errors.address?.message} required>
+              <Textarea {...register("address")} placeholder="123 Main St, City, State 00000" rows={2} />
+            </FormField>
+
+            <FormField label="Emergency Contact" error={errors.emergencyContact?.message} required>
+              <Input {...register("emergencyContact")} placeholder="Jane Doe +1 555 9999" />
+            </FormField>
+          </div>
+
+          {/* ── Documents ── */}
+          <Section title="Documents">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="D/L Number" error={errors.dlNumber?.message} required>
+                <Input {...register("dlNumber")} placeholder="DL-12345678" />
+              </FormField>
+              <FileInput
+                label="D/L Document"
+                accept=".pdf,.jpg,.jpeg,.png"
+                files={dlFiles}
+                existingUrls={driver?.dlDocumentUrl ? [driver.dlDocumentUrl] : []}
+                onChange={setDlFiles}
+              />
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <Label>Telegram ID (optional)</Label>
-            <Input {...register("telegramId")} placeholder="@username or numeric ID" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Assigned Unit (optional)</Label>
-            <Select
-              value={unitIdValue ?? "none"}
-              onValueChange={(v) => setValue("unitId", v === "none" ? null : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="No unit" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No unit</SelectItem>
-                {units.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>{u.unitNumber}</SelectItem>
+            <div className="space-y-2">
+              <p className="text-sm font-medium leading-none">
+                Citizenship Type <span className="text-red-500"> *</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {CITIZENSHIP_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setValue("citizenshipType", t, { shouldDirty: true })}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                      citizenshipValue === t
+                        ? "bg-black text-white border-black"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {t}
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
+              </div>
+              {errors.citizenshipType && (
+                <p className="text-xs text-red-500">{errors.citizenshipType.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium leading-none">
+                Clean Background <span className="text-red-500"> *</span>
+              </p>
+              <div className="flex gap-2">
+                {([true, false] as const).map((v) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    onClick={() => setValue("cleanBackground", v, { shouldDirty: true })}
+                    className={`px-5 py-1.5 rounded-full text-sm border transition-colors ${
+                      cleanBgValue === v
+                        ? "bg-black text-white border-black"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {v ? "Yes" : "No"}
+                  </button>
+                ))}
+              </div>
+              {errors.cleanBackground && (
+                <p className="text-xs text-red-500">{errors.cleanBackground.message}</p>
+              )}
+            </div>
+          </Section>
+
+          {/* ── Optional Documents ── */}
+          <Section title="Optional Documents">
+            <div className="grid grid-cols-2 gap-4">
+              <FileInput
+                label="Driving Record"
+                accept=".pdf,.jpg,.jpeg,.png"
+                files={drFiles}
+                existingUrls={driver?.drivingRecordUrl ? [driver.drivingRecordUrl] : []}
+                onChange={setDrFiles}
+              />
+              <FileInput
+                label="TWIC / TSA"
+                accept=".pdf,.jpg,.jpeg,.png"
+                files={twicFiles}
+                existingUrls={driver?.twicTsaUrl ? [driver.twicTsaUrl] : []}
+                onChange={setTwicFiles}
+              />
+            </div>
+          </Section>
+
+          {/* ── App Credentials ── */}
+          <Section title="App Credentials (Optional)">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Application Username">
+                <Input {...register("appUsername")} placeholder="username" />
+              </FormField>
+              <FormField label="Application Password">
+                <Input {...register("appPassword")} type="password" placeholder="••••••••" />
+              </FormField>
+            </div>
+          </Section>
+
+          {uploadWarning && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800">
+              <strong>Warning:</strong> {uploadWarning}
+            </div>
+          )}
+
+          {apiError && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-700">
+              {apiError}
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={handleClose}>
+              {uploadWarning ? "Close" : "Cancel"}
+            </Button>
             <Button type="submit" className="bg-black text-white hover:bg-gray-800" disabled={isSubmitting}>
               {isSubmitting ? "Saving…" : isEdit ? "Save Changes" : "Add Driver"}
             </Button>
