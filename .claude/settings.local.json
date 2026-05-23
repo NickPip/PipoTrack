@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx prisma *)",
+      "Bash(mkdir -p /Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads/\\\\[id\\\\])"
+    ],
+    "additionalDirectories": [
+      "/Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads"
     ]
   }
 }

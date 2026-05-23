@@ -105,21 +105,30 @@ model Driver {
 
 model Load {
   id              String     @id @default(cuid())
+  loadNumber      Int        @default(autoincrement())
   status          LoadStatus @default(PENDING)
   financialStatus FinStatus  @default(UNPAID)
   broker          String
-  pickupZip       String
+  brokerReference String?
+  pickupZip       String?
   pickupAddress   String
   pickupDate      DateTime
+  pickupNotes     String?
   deliveryAddress String
   deliveryDate    DateTime
+  deliveryNotes   String?
   rate            Float?
+  driverRate      Float?
   miles           Float?
   weight          Float?
   dimensions      Json?
-  vehicleRequired String
+  vehicleRequired String?
+  rcUrl           String?
+  bolUrls         Json?
+  podUrl          String?
   rcUploaded      Boolean    @default(false)
   dispatcherId    String?
+  trackingId      String?
   driverId        String?
   unitId          String?
   createdAt       DateTime   @default(now())
