@@ -63,6 +63,8 @@ export async function GET() {
       driverRate: true,
       dispatcherId: true,
       trackingId: true,
+      miles: true,
+      vehicleRequired: true,
       driverId: true,
       unitId: true,
       factoringStatus: true,

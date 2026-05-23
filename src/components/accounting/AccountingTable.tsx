@@ -271,6 +271,7 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
               <th className="text-left px-4 py-3 font-medium text-gray-500">Load #</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Broker Ref</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Broker</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Dispatcher</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Origin</th>
@@ -285,12 +286,12 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-400">Loading…</td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-400">No loads found</td>
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-400">No loads found</td>
               </tr>
             )}
             {filtered.map((load, i) => (
@@ -303,8 +304,14 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
                 {/* Load # */}
                 <td className="px-4 py-3 whitespace-nowrap">
                   <p className="font-medium text-gray-900">#{load.loadNumber}</p>
-                  {load.brokerReference && (
-                    <p className="text-xs text-gray-400">{load.brokerReference}</p>
+                </td>
+
+                {/* Broker Ref */}
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {load.brokerReference ? (
+                    <p className="text-gray-700">{load.brokerReference}</p>
+                  ) : (
+                    <span className="text-gray-300">—</span>
                   )}
                 </td>
 

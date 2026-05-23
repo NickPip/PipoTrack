@@ -25,17 +25,17 @@ const STATUS_FILTER_OPTIONS = [
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Pending",
-  DISPATCHED_TO_PICKUP: "Dispatched",
-  ONSITE_FOR_PICKUP: "OnSite Pickup",
-  LOADED_AND_DELIVERING: "Delivering",
-  ONSITE_FOR_DELIVERY: "OnSite Delivery",
+  DISPATCHED_TO_PICKUP: "Dispatched to Pickup",
+  ONSITE_FOR_PICKUP: "OnSite for Pickup",
+  LOADED_AND_DELIVERING: "Loaded and Delivering",
+  ONSITE_FOR_DELIVERY: "OnSite for Delivery",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-gray-100 text-gray-600",
+  PENDING: "bg-yellow-50 text-yellow-700",
   DISPATCHED_TO_PICKUP: "bg-blue-50 text-blue-700",
-  ONSITE_FOR_PICKUP: "bg-yellow-50 text-yellow-700",
-  LOADED_AND_DELIVERING: "bg-purple-50 text-purple-700",
+  ONSITE_FOR_PICKUP: "bg-purple-50 text-purple-700",
+  LOADED_AND_DELIVERING: "bg-blue-50 text-blue-700",
   ONSITE_FOR_DELIVERY: "bg-orange-50 text-orange-700",
 };
 
@@ -74,11 +74,15 @@ export default function ActiveLoadsTable() {
   });
 
   const filtered = activeLoads.filter((l) => {
+    const q = search.toLowerCase();
     const matchSearch =
       String(l.loadNumber).includes(search) ||
-      l.broker.toLowerCase().includes(search.toLowerCase()) ||
-      l.pickupAddress.toLowerCase().includes(search.toLowerCase()) ||
-      l.deliveryAddress.toLowerCase().includes(search.toLowerCase());
+      l.broker.toLowerCase().includes(q) ||
+      (l.brokerReference ?? "").toLowerCase().includes(q) ||
+      (l.dispatcherName ?? "").toLowerCase().includes(q) ||
+      (l.trackingName ?? "").toLowerCase().includes(q) ||
+      l.pickupAddress.toLowerCase().includes(q) ||
+      l.deliveryAddress.toLowerCase().includes(q);
     const matchStatus = statusFilter === "all" || l.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -110,51 +114,71 @@ export default function ActiveLoadsTable() {
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
               <th className="text-left px-4 py-3 font-medium text-gray-500">Load #</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Ref #</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Broker</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Pickup</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Delivery</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Rate</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Dispatcher</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Tracking ID</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Origin</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Destination</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Assigned Unit</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Distance</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Movement</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Load Status</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             )}
             {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No active loads</td></tr>
+              <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-400">No active loads</td></tr>
             )}
             {filtered.map((load, i) => (
               <tr
                 key={load.id}
                 className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i === filtered.length - 1 ? "border-0" : ""}`}
               >
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 whitespace-nowrap">
                   <p className="font-medium text-gray-900">#{load.loadNumber}</p>
-                  {load.brokerReference && <p className="text-xs text-gray-400">{load.brokerReference}</p>}
                 </td>
-                <td className="px-4 py-3">
-                  <p className="text-gray-900">{load.broker}</p>
-                  {load.dispatcherName && <p className="text-xs text-gray-400">{load.dispatcherName}</p>}
+                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                  {load.brokerReference ?? <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3">
-                  <p className="text-gray-700">{load.pickupAddress}</p>
+                <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
+                  {load.broker}
+                </td>
+                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                  {load.dispatcherName ?? <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                  {load.trackingName ?? <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 max-w-[150px]">
+                  <p className="text-gray-700 truncate">{load.pickupAddress}</p>
                   <p className="text-xs text-gray-400">{formatDate(load.pickupDate)}</p>
                 </td>
-                <td className="px-4 py-3">
-                  <p className="text-gray-700">{load.deliveryAddress}</p>
+                <td className="px-4 py-3 max-w-[150px]">
+                  <p className="text-gray-700 truncate">{load.deliveryAddress}</p>
                   <p className="text-xs text-gray-400">{formatDate(load.deliveryDate)}</p>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                  {load.unitNumber ?? <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {load.miles != null ? (
+                    <span className="text-gray-700">{load.miles.toLocaleString()} mi</span>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                  {load.vehicleRequired ?? <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
                   <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[load.status] ?? "bg-gray-100 text-gray-600"}`}>
                     {STATUS_LABELS[load.status] ?? load.status}
                   </span>
-                </td>
-                <td className="px-4 py-3">
-                  {load.rate != null ? (
-                    <p className="text-gray-900 font-medium">${load.rate.toLocaleString()}</p>
-                  ) : <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">

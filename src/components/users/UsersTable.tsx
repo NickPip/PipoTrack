@@ -91,20 +91,22 @@ export default function UsersTable() {
             <tr className="border-b border-gray-100 bg-gray-50">
               <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">ID Number</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Role</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">User Type</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone Number</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Address</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-500">Emergency Contact</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading…</td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No users found</td>
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">No users found</td>
               </tr>
             )}
             {filtered.map((user, i) => (
@@ -117,9 +119,15 @@ export default function UsersTable() {
                   <p className="text-xs text-gray-400">{user.email}</p>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{user.idNumber}</td>
-                <td className="px-4 py-3 text-gray-600">{user.phoneNumber}</td>
                 <td className="px-4 py-3">
                   <StatusBadge value={user.role} />
+                </td>
+                <td className="px-4 py-3 text-gray-600">{user.phoneNumber}</td>
+                <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate">
+                  {user.address ?? <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 text-gray-600">
+                  {user.emergencyContact ?? <span className="text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">

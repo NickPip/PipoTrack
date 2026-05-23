@@ -76,6 +76,8 @@ export interface LoadRow {
   deliveryNotes?: string | null;
   rate?: number | null;
   driverRate?: number | null;
+  miles?: number | null;
+  vehicleRequired?: string | null;
   dispatcherId?: string | null;
   dispatcherName?: string | null;
   trackingId?: string | null;
