@@ -36,7 +36,7 @@ const schema = z.object({
 export async function GET() {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "recruiting")) {
+  if (!role || (!canAccess(role, "recruiting") && !canAccess(role, "operations") && !canAccess(role, "accounting"))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -32,6 +32,7 @@ const schema = z.object({
   deliveryDate: z.string().min(1, "Required"),
   deliveryNotes: z.string().optional(),
   unitId: z.string().nullable().optional(),
+  driverId: z.string().nullable().optional(),
   rcUrl: z.string().nullable().optional(),
   bolUrls: z.array(z.string()).optional(),
   podUrl: z.string().nullable().optional(),
@@ -83,25 +84,31 @@ export async function GET() {
       ...loads.map((l) => l.trackingId).filter(Boolean),
     ] as string[]),
   ];
-  const units = loads.map((l) => l.unitId).filter(Boolean) as string[];
+  const unitIds   = loads.map((l) => l.unitId).filter(Boolean) as string[];
+  const driverIds = loads.map((l) => l.driverId).filter(Boolean) as string[];
 
-  const [users, unitRows] = await Promise.all([
+  const [users, unitRows, driverRows] = await Promise.all([
     userIds.length
       ? prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, surname: true } })
       : Promise.resolve([]),
-    units.length
-      ? prisma.unit.findMany({ where: { id: { in: units } }, select: { id: true, unitNumber: true } })
+    unitIds.length
+      ? prisma.unit.findMany({ where: { id: { in: unitIds } }, select: { id: true, unitNumber: true } })
+      : Promise.resolve([]),
+    driverIds.length
+      ? prisma.driver.findMany({ where: { id: { in: driverIds } }, select: { id: true, name: true } })
       : Promise.resolve([]),
   ]);
 
-  const userMap = Object.fromEntries(users.map((u) => [u.id, `${u.name} ${u.surname}`]));
-  const unitMap = Object.fromEntries(unitRows.map((u) => [u.id, u.unitNumber]));
+  const userMap   = Object.fromEntries(users.map((u) => [u.id, `${u.name} ${u.surname}`]));
+  const unitMap   = Object.fromEntries(unitRows.map((u) => [u.id, u.unitNumber]));
+  const driverMap = Object.fromEntries(driverRows.map((d) => [d.id, d.name]));
 
   const result = loads.map((l) => ({
     ...l,
     dispatcherName: l.dispatcherId ? (userMap[l.dispatcherId] ?? null) : null,
-    trackingName: l.trackingId ? (userMap[l.trackingId] ?? null) : null,
-    unitNumber: l.unitId ? (unitMap[l.unitId] ?? null) : null,
+    trackingName:   l.trackingId   ? (userMap[l.trackingId]   ?? null) : null,
+    unitNumber:     l.unitId       ? (unitMap[l.unitId]        ?? null) : null,
+    driverName:     l.driverId     ? (driverMap[l.driverId]    ?? null) : null,
     notesCount: l._count.notes,
   }));
 
@@ -138,6 +145,7 @@ export async function POST(req: NextRequest) {
       deliveryDate: parseDateTime(d.deliveryDate),
       deliveryNotes: d.deliveryNotes ?? null,
       unitId: d.unitId ?? null,
+      driverId: d.driverId ?? null,
       rcUrl: d.rcUrl ?? null,
       bolUrls: d.bolUrls ?? [],
       podUrl: d.podUrl ?? null,

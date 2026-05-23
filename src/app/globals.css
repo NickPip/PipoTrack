@@ -141,6 +141,9 @@
   --paper: #fbfaf7;
   --line: rgba(11, 11, 12, 0.08);
   --line-strong: rgba(11, 11, 12, 0.14);
+  --danger: #c4321a;
+  --danger-bg: #fdecec;
+  --danger-bd: #f1c8c8;
 }
 
 /* ── Notes drawer ───────────────────────── */

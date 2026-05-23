@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import PageTable, { TD, TD_MONO, Dim, KebabBtn, Pill, StackCell, Avatar, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import AddLoadModal, { type LoadRow } from "@/components/operations/AddLoadModal";
 import LoadNotesPanel, { type LoadSummary } from "@/components/operations/LoadNotesPanel";
@@ -51,12 +52,80 @@ function fmtDate(value: string) {
   return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
+// ── Inline status dropdown ────────────────────────────────────────────────────
+
+function StatusDropdown({ loadId, status, onMutate }: { loadId: string; status: string; onMutate: (id: string, newStatus: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const cfg = STATUS_MAP[status] ?? { label: status, variant: "dispatched" as StatusVariant };
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3 }}
+      >
+        <Pill label={cfg.label} variant={cfg.variant} />
+        <ChevronDown size={11} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.10)", padding: "4px 0", zIndex: 50, minWidth: 130 }}>
+          {STATUS_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { onMutate(loadId, opt.value); setOpen(false); }}
+              style={{ width: "100%", textAlign: "left", padding: "6px 10px", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-soft)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
+            >
+              <Pill label={opt.label} variant={STATUS_MAP[opt.value]?.variant ?? "dispatched"} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function ActiveLoadsTable() {
   const qc = useQueryClient();
   const { data: allLoads = [], isLoading } = useQuery({ queryKey: ["loads"], queryFn: fetchLoads });
   const activeLoads = allLoads.filter(l => ACTIVE_STATUSES.has(l.status));
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res = await fetch(`/api/loads/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      return res.json();
+    },
+    onMutate: async ({ id, status }) => {
+      await qc.cancelQueries({ queryKey: ["loads"] });
+      const prev = qc.getQueryData<typeof allLoads>(["loads"]);
+      qc.setQueryData<typeof allLoads>(["loads"], (old = []) =>
+        old.map(l => (l.id === id ? { ...l, status } : l))
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["loads"], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["loads"] }),
+  });
 
   const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -113,16 +182,15 @@ export default function ActiveLoadsTable() {
         emptyMessage="No active loads"
         emptyBody="Add a load or adjust your filters."
         renderCells={(load, isLast) => {
-          const nb         = isLast ? "none" : undefined;
-          const pickup     = parseAddress(load.pickupAddress);
-          const delivery   = parseAddress(load.deliveryAddress);
-          const statusCfg  = STATUS_MAP[load.status] ?? { label: load.status, variant: "dispatched" as StatusVariant };
+          const nb       = isLast ? "none" : undefined;
+          const pickup   = parseAddress(load.pickupAddress);
+          const delivery = parseAddress(load.deliveryAddress);
           return (
             <>
               <td style={{ ...TD_MONO, ...FIRST_TD, borderBottom: nb }}>#{load.loadNumber}</td>
               <td style={{ ...TD_MONO, color: "var(--ink-3)", borderBottom: nb }}>{load.brokerReference ?? <Dim />}</td>
               <td style={{ ...TD, borderBottom: nb }}>
-                <Pill label={statusCfg.label} variant={statusCfg.variant} />
+                <StatusDropdown loadId={load.id} status={load.status} onMutate={(id, s) => statusMutation.mutate({ id, status: s })} />
               </td>
               <td style={{ ...TD, borderBottom: nb, whiteSpace: "nowrap" }}>{load.broker}</td>
               <td style={{ ...TD, borderBottom: nb }}>
@@ -136,7 +204,7 @@ export default function ActiveLoadsTable() {
               <td style={{ ...TD, borderBottom: nb }}><StackCell top={delivery.main} topSub={delivery.zip || undefined} sub={fmtDate(load.deliveryDate)} /></td>
               <td style={{ ...TD, borderBottom: nb }}>
                 {load.unitNumber
-                  ? <StackCell top={load.unitNumber} sub="No driver" />
+                  ? <StackCell top={load.unitNumber} sub={load.driverName ?? "No driver"} />
                   : <Dim />}
               </td>
               <td style={{ ...TD, borderBottom: nb, textAlign: "right", fontFamily: "var(--font-geist-mono, monospace)", fontSize: 12.5 }}>

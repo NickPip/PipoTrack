@@ -41,6 +41,7 @@ const schema = z.object({
   deliveryDate: z.string().optional(),
   deliveryNotes: z.string().nullable().optional(),
   unitId: z.string().nullable().optional(),
+  driverId: z.string().nullable().optional(),
   rcUrl: z.string().nullable().optional(),
   bolUrls: z.array(z.string()).optional(),
   podUrl: z.string().nullable().optional(),
@@ -76,7 +77,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (d.deliveryAddress !== undefined) update.deliveryAddress = d.deliveryAddress;
   if (d.deliveryDate !== undefined) update.deliveryDate = parseDateTime(d.deliveryDate);
   if (d.deliveryNotes !== undefined) update.deliveryNotes = d.deliveryNotes;
-  if (d.unitId !== undefined) update.unitId = d.unitId;
+  if (d.unitId    !== undefined) update.unitId    = d.unitId;
+  if (d.driverId  !== undefined) update.driverId  = d.driverId;
   if (d.rcUrl !== undefined) update.rcUrl = d.rcUrl;
   if (d.bolUrls !== undefined) update.bolUrls = d.bolUrls;
   if (d.podUrl !== undefined) update.podUrl = d.podUrl;
