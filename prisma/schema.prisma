@@ -126,6 +126,7 @@ model Load {
   rcUrl           String?
   bolUrls         Json?
   podUrl          String?
+  factoringStatus String?
   rcUploaded      Boolean    @default(false)
   dispatcherId    String?
   trackingId      String?

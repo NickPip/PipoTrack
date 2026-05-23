@@ -65,6 +65,7 @@ export interface LoadRow {
   loadNumber: number;
   status: string;
   financialStatus: string;
+  factoringStatus?: string | null;
   broker: string;
   brokerReference?: string | null;
   pickupAddress: string;

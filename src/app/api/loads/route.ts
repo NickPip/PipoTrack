@@ -65,6 +65,7 @@ export async function GET() {
       trackingId: true,
       driverId: true,
       unitId: true,
+      factoringStatus: true,
       rcUrl: true,
       bolUrls: true,
       podUrl: true,

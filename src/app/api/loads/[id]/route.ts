@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccess } from "@/lib/rbac";
-import { Role, LoadStatus } from "@/generated/prisma/enums";
+import { Role, LoadStatus, FinStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
 
 function parseDateTime(value: string): Date {
@@ -70,6 +70,33 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (d.rcUrl !== undefined) update.rcUrl = d.rcUrl;
   if (d.bolUrls !== undefined) update.bolUrls = d.bolUrls;
   if (d.podUrl !== undefined) update.podUrl = d.podUrl;
+
+  const load = await prisma.load.update({ where: { id }, data: update });
+  return NextResponse.json(load);
+}
+
+const accountingSchema = z.object({
+  financialStatus: z.nativeEnum(FinStatus).optional(),
+  factoringStatus: z.enum(["YES", "NO", "WARNING"]).nullable().optional(),
+});
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  const role = session?.user?.role as Role | undefined;
+  if (!role || !canAccess(role, "accounting")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const body = await req.json();
+  const parsed = accountingSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const update: Record<string, unknown> = {};
+  if (parsed.data.financialStatus !== undefined) update.financialStatus = parsed.data.financialStatus;
+  if (parsed.data.factoringStatus !== undefined) update.factoringStatus = parsed.data.factoringStatus;
 
   const load = await prisma.load.update({ where: { id }, data: update });
   return NextResponse.json(load);
