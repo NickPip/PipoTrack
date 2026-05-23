@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, FileText, ChevronDown } from "lucide-react";
+import { Eye, FileText, ChevronDown, Search, ReceiptText } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -236,12 +237,15 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
 
       {/* Search + two filter dropdowns */}
       <div className="flex gap-3 mb-6">
-        <Input
-          className="flex-1"
-          placeholder="Search by load #, broker, dispatcher, tracking ID, driver, or address..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <Input
+            className="pl-9"
+            placeholder="Search by load #, broker, dispatcher, tracking ID, driver, or address..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-52">
             <SelectValue placeholder="All Load Statuses" />
@@ -266,32 +270,45 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
         </Select>
       </div>
 
-      <div className="border border-gray-100 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Load #</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Broker Ref</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Broker</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Dispatcher</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Origin</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Destination</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Unit</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Factoring</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Payment</th>
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Load #</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Broker Ref</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Broker</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Dispatcher</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Origin</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Destination</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Unit</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Factoring</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Payment</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b border-gray-50">
+                <td className="px-4 py-3"><Skeleton className="h-4 w-12" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                <td className="px-4 py-3" />
               </tr>
-            )}
+            ))}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-gray-400">No loads found</td>
+                <td colSpan={11} className="px-4 py-14 text-center">
+                  <ReceiptText size={28} className="mx-auto text-gray-200 mb-2" />
+                  <p className="text-sm text-gray-400">No loads found</p>
+                </td>
               </tr>
             )}
             {filtered.map((load, i) => (

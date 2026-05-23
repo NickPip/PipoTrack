@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Truck } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import FilterBar from "@/components/shared/FilterBar";
 import UnitModal, { type UnitRow } from "@/components/recruiting/UnitModal";
@@ -83,27 +84,35 @@ export default function UnitsTable() {
         searchPlaceholder="Search by unit number or owner…"
       />
 
-      <div className="border border-gray-100 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Unit #</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Type</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Dimensions (ft)</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Owner</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Drivers</th>
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Unit #</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Type</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Dimensions (ft)</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Owner</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Drivers</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b border-gray-50">
+                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /><Skeleton className="h-3 w-32 mt-1.5" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-8" /></td>
+                <td className="px-4 py-3" />
               </tr>
-            )}
+            ))}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">No units found</td>
+                <td colSpan={6} className="px-4 py-14 text-center">
+                  <Truck size={28} className="mx-auto text-gray-200 mb-2" />
+                  <p className="text-sm text-gray-400">No units found</p>
+                </td>
               </tr>
             )}
             {filtered.map((unit, i) => {

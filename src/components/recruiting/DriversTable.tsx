@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, UserRound } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import FilterBar from "@/components/shared/FilterBar";
 import DriverModal, { type DriverRow } from "@/components/recruiting/DriverModal";
@@ -80,28 +81,37 @@ export default function DriversTable() {
         searchPlaceholder="Search by name, phone, or D/L number…"
       />
 
-      <div className="border border-gray-100 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Full Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone Number</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Assigned Unit</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">DL Number</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Citizenship</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Clean Background</th>
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Full Name</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Phone Number</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Assigned Unit</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">DL Number</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Citizenship</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Clean Background</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b border-gray-50">
+                <td className="px-4 py-3"><Skeleton className="h-4 w-36" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-10 rounded-full" /></td>
+                <td className="px-4 py-3" />
               </tr>
-            )}
+            ))}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">No drivers found</td>
+                <td colSpan={COLS} className="px-4 py-14 text-center">
+                  <UserRound size={28} className="mx-auto text-gray-200 mb-2" />
+                  <p className="text-sm text-gray-400">No drivers found</p>
+                </td>
               </tr>
             )}
             {filtered.map((driver, i) => (

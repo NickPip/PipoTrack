@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Users } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import FilterBar from "@/components/shared/FilterBar";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -85,28 +86,37 @@ export default function UsersTable() {
         searchPlaceholder="Search by name or email…"
       />
 
-      <div className="border border-gray-100 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">ID Number</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">User Type</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone Number</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Address</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Emergency Contact</th>
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Name</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">ID Number</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">User Type</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Phone Number</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Address</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Emergency Contact</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b border-gray-50">
+                <td className="px-4 py-3"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-40 mt-1.5" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-36" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                <td className="px-4 py-3" />
               </tr>
-            )}
+            ))}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">No users found</td>
+                <td colSpan={7} className="px-4 py-14 text-center">
+                  <Users size={28} className="mx-auto text-gray-200 mb-2" />
+                  <p className="text-sm text-gray-400">No users found</p>
+                </td>
               </tr>
             )}
             {filtered.map((user, i) => (

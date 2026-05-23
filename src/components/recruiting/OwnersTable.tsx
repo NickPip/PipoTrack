@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Building2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import FilterBar from "@/components/shared/FilterBar";
 import OwnerModal, { type OwnerRow } from "@/components/recruiting/OwnerModal";
@@ -73,27 +74,35 @@ export default function OwnersTable() {
         searchPlaceholder="Search by company, owner name, email, or phone…"
       />
 
-      <div className="border border-gray-100 rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Company Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Owner Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Phone Number</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Units</th>
+            <tr className="border-b border-gray-100 bg-gray-50/60">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Company Name</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Owner Name</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Phone Number</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Email</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Units</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">Loading…</td>
+            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b border-gray-50">
+                <td className="px-4 py-3"><Skeleton className="h-4 w-36" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-44" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-8 rounded-full" /></td>
+                <td className="px-4 py-3" />
               </tr>
-            )}
+            ))}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td colSpan={COLS} className="px-4 py-8 text-center text-gray-400">No owners found</td>
+                <td colSpan={COLS} className="px-4 py-14 text-center">
+                  <Building2 size={28} className="mx-auto text-gray-200 mb-2" />
+                  <p className="text-sm text-gray-400">No owners found</p>
+                </td>
               </tr>
             )}
             {filtered.map((owner, i) => (

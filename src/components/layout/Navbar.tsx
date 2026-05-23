@@ -123,7 +123,7 @@ export default function Navbar() {
         N
       </Link>
 
-      <nav className="flex items-center gap-1 flex-1">
+      <nav className="flex items-center gap-1 flex-1 justify-center">
         {NAV_ITEMS.map((item) => {
           if ("children" in item) {
             if (role && !canAccess(role, item.module as Parameters<typeof canAccess>[1])) return null;
@@ -152,19 +152,29 @@ export default function Navbar() {
           onClick={() => setUserMenuOpen((v) => !v)}
           className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
         >
-          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
-            {session?.user?.name?.[0]?.toUpperCase() ?? "?"}
+          <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-xs font-semibold text-white tracking-wide">
+            {(session?.user?.name ?? "")
+              .split(" ")
+              .slice(0, 2)
+              .map((p) => p[0])
+              .join("")
+              .toUpperCase() || "?"}
           </div>
         </button>
         {userMenuOpen && (
-          <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-50">
-            <div className="px-4 py-2 border-b border-gray-50">
-              <p className="text-sm font-medium text-gray-900 truncate">{session?.user?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{session?.user?.email}</p>
+          <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-50">
+            <div className="px-4 py-2.5 border-b border-gray-100">
+              <p className="text-sm font-semibold text-gray-900 truncate">{session?.user?.name}</p>
+              <p className="text-xs text-gray-400 truncate mt-0.5">{session?.user?.email}</p>
+              {role && (
+                <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 capitalize">
+                  {role.charAt(0) + role.slice(1).toLowerCase()}
+                </span>
+              )}
             </div>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              className="w-full text-left px-4 py-2 text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
             >
               Sign out
             </button>
