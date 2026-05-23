@@ -4,7 +4,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar />
-      <main className="flex-1 px-6 py-8">{children}</main>
+      <main className="flex-1 px-6 py-8" style={{ paddingTop: "calc(56px + 2rem)" }}>{children}</main>
     </div>
   );
 }

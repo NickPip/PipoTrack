@@ -134,6 +134,7 @@ model Load {
   unitId          String?
   createdAt       DateTime   @default(now())
   bids            Bid[]
+  notes           LoadNote[]
 }
 
 model Bid {
@@ -145,4 +146,14 @@ model Bid {
   createdAt DateTime @default(now())
   load      Load     @relation(fields: [loadId], references: [id])
   driver    Driver   @relation(fields: [driverId], references: [id])
+}
+
+model LoadNote {
+  id        String   @id @default(cuid())
+  loadId    String
+  userId    String
+  userName  String
+  body      String
+  createdAt DateTime @default(now())
+  load      Load     @relation(fields: [loadId], references: [id], onDelete: Cascade)
 }

@@ -128,3 +128,113 @@
     @apply font-sans;
   }
 }
+
+/* ── Global design tokens ───────────────── */
+:root {
+  --ink-0: #0b0b0c;
+  --ink-1: #18181b;
+  --ink-2: #3f3f46;
+  --ink-3: #71717a;
+  --ink-4: #a1a1aa;
+  --bg: #ffffff;
+  --bg-soft: #f6f5f3;
+  --paper: #fbfaf7;
+  --line: rgba(11, 11, 12, 0.08);
+  --line-strong: rgba(11, 11, 12, 0.14);
+}
+
+/* ── Notes drawer ───────────────────────── */
+.note-item {
+  position: relative;
+  padding: 14px 0 14px 22px;
+  border-top: 1px solid var(--line);
+}
+.note-item:first-child {
+  border-top: none;
+}
+.note-item::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 18px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ink-1);
+  box-shadow: 0 0 0 3px var(--bg);
+  z-index: 1;
+}
+.note-item::after {
+  content: "";
+  position: absolute;
+  left: 8.5px;
+  top: 30px;
+  bottom: -10px;
+  width: 1px;
+  background: var(--line);
+}
+.note-item:last-child::after {
+  display: none;
+}
+
+/* ── Navbar design tokens ───────────────── */
+.nav {
+  --nav-bg: #ffffff;
+  --nav-bg-soft: #f6f5f3;
+  --nav-fg: #18181b;
+  --nav-fg-muted: #71717a;
+  --nav-line: rgba(11, 11, 12, 0.08);
+  --nav-line-strong: rgba(11, 11, 12, 0.14);
+  --nav-accent: #0b0b0c;
+  font-family: var(--font-geist-sans, ui-sans-serif, system-ui, -apple-system, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+.nav-link {
+  color: var(--nav-fg-muted);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.nav-link:hover {
+  color: var(--nav-fg);
+}
+.nav-link.active {
+  color: var(--nav-fg);
+}
+.nav-link.active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -14px;
+  height: 2px;
+  background: var(--nav-accent);
+  border-radius: 2px;
+}
+
+.nav-dropdown {
+  background: var(--nav-bg);
+  border: 1px solid var(--nav-line);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.02),
+    0 12px 28px -10px rgba(0, 0, 0, 0.18),
+    0 4px 10px -4px rgba(0, 0, 0, 0.08);
+}
+.nav-dropdown-item {
+  cursor: pointer;
+  display: block;
+  text-decoration: none;
+  border: none;
+  outline: none;
+}
+.nav-dropdown-item:hover {
+  background: var(--nav-bg-soft);
+}
+.nav-dropdown-title {
+  color: var(--nav-fg);
+}
+.nav-dropdown-desc {
+  color: var(--nav-fg-muted);
+}

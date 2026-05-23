@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, PackageSearch } from "lucide-react";
+import { Pencil, Trash2, PackageSearch, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import FilterBar from "@/components/shared/FilterBar";
 import AddLoadModal, { type LoadRow } from "@/components/operations/AddLoadModal";
+import LoadNotesPanel, { type LoadSummary } from "@/components/operations/LoadNotesPanel";
 
 const ACTIVE_STATUSES = new Set([
   "PENDING",
@@ -65,6 +66,7 @@ export default function ActiveLoadsTable() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editLoad, setEditLoad] = useState<LoadRow | null>(null);
+  const [notesLoad, setNotesLoad] = useState<LoadSummary | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -201,6 +203,13 @@ export default function ActiveLoadsTable() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Notes"
+                    >
+                      <MessageSquare size={14} />
+                    </button>
                     <button onClick={() => { setEditLoad(load); setModalOpen(true); }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
                       <Pencil size={14} />
                     </button>
@@ -221,6 +230,10 @@ export default function ActiveLoadsTable() {
         onSaved={() => qc.invalidateQueries({ queryKey: ["loads"] })}
         load={editLoad}
       />
+
+      {notesLoad && (
+        <LoadNotesPanel load={notesLoad} onClose={() => setNotesLoad(null)} />
+      )}
     </div>
   );
 }
