@@ -5,6 +5,16 @@ import { canAccess } from "@/lib/rbac";
 import { Role, LoadStatus, FinStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
 
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pending",
+  DISPATCHED_TO_PICKUP: "Dispatched to Pickup",
+  ONSITE_FOR_PICKUP: "OnSite for Pickup",
+  LOADED_AND_DELIVERING: "Loaded and Delivering",
+  ONSITE_FOR_DELIVERY: "OnSite for Delivery",
+  DELIVERED: "Delivered",
+  CANCELED: "Canceled",
+};
+
 function parseDateTime(value: string): Date {
   if (value.includes("T") || value.includes("-")) return new Date(value);
   const match = value.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
@@ -71,7 +81,34 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (d.bolUrls !== undefined) update.bolUrls = d.bolUrls;
   if (d.podUrl !== undefined) update.podUrl = d.podUrl;
 
+  // Detect status change before updating
+  let prevStatus: string | null = null;
+  if (d.status !== undefined) {
+    const current = await prisma.load.findUnique({ where: { id }, select: { status: true } });
+    if (current && current.status !== d.status) {
+      prevStatus = current.status;
+    }
+  }
+
   const load = await prisma.load.update({ where: { id }, data: update });
+
+  // Post system note if status changed
+  if (prevStatus !== null && d.status !== undefined) {
+    const userName = `${session?.user?.name ?? "Unknown"}`;
+    const userId = (session?.user as { id?: string } | undefined)?.id ?? "";
+    const from = STATUS_LABELS[prevStatus] ?? prevStatus;
+    const to = STATUS_LABELS[d.status] ?? d.status;
+    await prisma.loadNote.create({
+      data: {
+        loadId: id,
+        userId,
+        userName,
+        body: `Status changed: ${from} → ${to}`,
+        isSystem: true,
+      },
+    });
+  }
+
   return NextResponse.json(load);
 }
 

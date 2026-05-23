@@ -154,6 +154,7 @@ model LoadNote {
   userId    String
   userName  String
   body      String
+  isSystem  Boolean  @default(false)
   createdAt DateTime @default(now())
   load      Load     @relation(fields: [loadId], references: [id], onDelete: Cascade)
 }

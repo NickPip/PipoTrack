@@ -20,6 +20,7 @@ type Note = {
   userId: string;
   userName: string;
   body: string;
+  isSystem: boolean;
   createdAt: string;
 };
 
@@ -454,55 +455,98 @@ export default function LoadNotesPanel({
           {/* Notes timeline */}
           {!isLoading && notes.length > 0 && (
             <div style={{ padding: "6px 24px 16px", display: "flex", flexDirection: "column" }}>
-              {notes.map((note) => (
-                <div key={note.id} className="note-item">
-                  {/* Note header row */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              {notes.map((note) =>
+                note.isSystem ? (
+                  // ── System event row ──
+                  <div
+                    key={note.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 0",
+                      borderTop: "1px solid var(--line)",
+                    }}
+                    className="note-item-system"
+                  >
                     <div
                       aria-hidden="true"
                       style={{
                         width: 22,
                         height: 22,
                         borderRadius: 999,
-                        background: "var(--ink-1)",
-                        color: "var(--bg)",
+                        background: "var(--bg-soft)",
+                        border: "1px solid var(--line-strong)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: 9.5,
-                        fontWeight: 600,
-                        letterSpacing: "0.02em",
                         flexShrink: 0,
-                        userSelect: "none",
-                        boxShadow: "0 0 0 2px var(--bg)",
+                        color: "var(--ink-3)",
                       }}
                     >
-                      {getInitials(note.userName)}
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="1,5.5 5.5,1 10,5.5" />
+                        <polyline points="1,9.5 5.5,5 10,9.5" />
+                      </svg>
                     </div>
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-1)" }}>
-                      {note.userName}
+                    <span style={{ fontSize: 12.5, color: "var(--ink-2)", flex: 1, fontWeight: 400 }}>
+                      {note.body}
+                      <span style={{ color: "var(--ink-4)", fontWeight: 400 }}> by </span>
+                      <span style={{ fontWeight: 600, color: "var(--ink-2)" }}>{note.userName}</span>
                     </span>
-                    <span style={{ fontSize: 11.5, fontWeight: 400, color: "var(--ink-3)", marginLeft: "auto" }}>
+                    <span style={{ fontSize: 11, color: "var(--ink-4)", flexShrink: 0, fontFamily: "var(--font-geist-mono, monospace)" }}>
                       {formatNoteTime(note.createdAt)}
                     </span>
                   </div>
-                  {/* Note body */}
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 13.5,
-                      fontWeight: 400,
-                      lineHeight: 1.55,
-                      letterSpacing: "-0.003em",
-                      color: "var(--ink-1)",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {note.body}
-                  </p>
-                </div>
-              ))}
+                ) : (
+                  // ── User note row ──
+                  <div key={note.id} className="note-item">
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <div
+                        aria-hidden="true"
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 999,
+                          background: "var(--ink-1)",
+                          color: "var(--bg)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 9.5,
+                          fontWeight: 600,
+                          letterSpacing: "0.02em",
+                          flexShrink: 0,
+                          userSelect: "none",
+                          boxShadow: "0 0 0 2px var(--bg)",
+                        }}
+                      >
+                        {getInitials(note.userName)}
+                      </div>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink-1)" }}>
+                        {note.userName}
+                      </span>
+                      <span style={{ fontSize: 11.5, fontWeight: 400, color: "var(--ink-3)", marginLeft: "auto" }}>
+                        {formatNoteTime(note.createdAt)}
+                      </span>
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 13.5,
+                        fontWeight: 400,
+                        lineHeight: 1.55,
+                        letterSpacing: "-0.003em",
+                        color: "var(--ink-1)",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {note.body}
+                    </p>
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>

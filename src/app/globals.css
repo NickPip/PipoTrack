@@ -176,6 +176,9 @@
 .note-item:last-child::after {
   display: none;
 }
+.note-item-system:first-child {
+  border-top: none;
+}
 
 /* ── Navbar design tokens ───────────────── */
 .nav {

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, FileText, ChevronDown, Search, ReceiptText } from "lucide-react";
+import { Eye, FileText, ChevronDown, Search, ReceiptText, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { LoadRow } from "@/components/operations/AddLoadModal";
+import LoadNotesPanel, { type LoadSummary } from "@/components/operations/LoadNotesPanel";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -186,6 +187,7 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [notesLoad, setNotesLoad] = useState<LoadSummary | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Record<string, unknown> }) => {
@@ -412,6 +414,13 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button
+                      onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Notes"
+                    >
+                      <MessageSquare size={14} />
+                    </button>
+                    <button
                       className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                       title="View load"
                     >
@@ -434,6 +443,10 @@ export default function AccountingTable({ canEdit }: { canEdit: boolean }) {
           </tbody>
         </table>
       </div>
+
+      {notesLoad && (
+        <LoadNotesPanel load={notesLoad} onClose={() => setNotesLoad(null)} />
+      )}
     </div>
   );
 }
