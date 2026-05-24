@@ -113,70 +113,6 @@ function formatDateTime(date: string | Date): string {
   return `${mm}/${dd} ${hh}:${min}`;
 }
 
-// ─── Injected CSS ─────────────────────────────────────────────────────────────
-
-const MODAL_CSS = `
-@keyframes am-overlay-in  { from { opacity: 0; } to { opacity: 1; } }
-@keyframes am-overlay-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes am-content-in  { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: none; } }
-@keyframes am-spin        { to { transform: rotate(360deg); } }
-
-.am-overlay[data-state=open]   { animation: am-overlay-in  0.22s ease both; }
-.am-overlay[data-state=closed] { animation: am-overlay-out 0.22s ease both; }
-
-.am-ctrl {
-  position: relative; display: flex; align-items: stretch;
-  height: 38px; border: 1px solid var(--line); border-radius: 10px;
-  background: var(--paper); overflow: hidden;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-}
-.am-ctrl:hover { border-color: var(--line-strong); }
-.am-ctrl:focus-within {
-  border-color: var(--ink-2); background: var(--bg);
-  box-shadow: 0 0 0 3px rgba(11,11,12,.06);
-}
-.am-ctrl.am-err { border-color: var(--danger); background: var(--danger-bg); }
-.am-ctrl.am-err:focus-within { box-shadow: 0 0 0 3px rgba(196,50,26,.12); }
-
-.am-input, .am-sel {
-  flex: 1; border: none; outline: none; background: transparent;
-  padding: 0 12px; font-size: 13.5px; font-weight: 400;
-  color: var(--ink-1); letter-spacing: -0.003em;
-  font-family: inherit; min-width: 0; width: 0;
-}
-.am-input::placeholder { color: var(--ink-4); }
-.am-sel { appearance: none; padding-right: 32px; cursor: pointer; }
-.am-sel option { color: var(--ink-1); background: var(--bg); }
-
-.am-ta {
-  width: 100%; min-height: 88px; max-height: 200px; resize: vertical;
-  padding: 10px 12px; font-size: 13.5px; line-height: 1.5;
-  font-family: inherit; color: var(--ink-1); background: var(--paper);
-  border: 1px solid var(--line); border-radius: 10px; outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-}
-.am-ta::placeholder { color: var(--ink-4); }
-.am-ta:hover { border-color: var(--line-strong); }
-.am-ta:focus { border-color: var(--ink-2); background: var(--bg); box-shadow: 0 0 0 3px rgba(11,11,12,.06); }
-.am-ta.am-err { border-color: var(--danger); background: var(--danger-bg); }
-.am-ta.am-err:focus { box-shadow: 0 0 0 3px rgba(196,50,26,.12); }
-
-.am-prefix {
-  padding: 0 10px; color: var(--ink-2);
-  border-right: 1px solid var(--line); background: rgba(11,11,12,.02);
-  display: flex; align-items: center; font-size: 13px; font-weight: 500; flex-shrink: 0;
-}
-.am-suffix {
-  padding: 0 10px; color: var(--ink-3);
-  font-size: 13px; font-weight: 500; display: flex; align-items: center; flex-shrink: 0;
-}
-.am-chevron {
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  pointer-events: none; color: var(--ink-3);
-}
-.am-spinner { animation: am-spin 0.8s linear infinite; }
-`;
 
 // ─── Form sub-components ──────────────────────────────────────────────────────
 
@@ -365,16 +301,14 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
   return (
     <DP.Root open={open} onOpenChange={v => { if (!v) handleClose(); }}>
       <DP.Portal>
-        <style>{MODAL_CSS}</style>
-
         {/* Scrim */}
         <DP.Overlay
           className="am-overlay"
           style={{ position: "fixed", inset: 0, background: "rgba(11,11,12,0.42)", zIndex: 50 }}
         />
 
-        {/* Scroll / centering layer */}
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflowY: "auto", pointerEvents: "none" }}>
+        {/* Centering layer */}
+        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", pointerEvents: "none" }}>
 
           {/* Modal box */}
           <DP.Content
@@ -386,7 +320,7 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
               border: "1px solid var(--line)",
               boxShadow: "0 24px 60px -10px rgba(0,0,0,.35), 0 8px 18px -8px rgba(0,0,0,.18)",
               display: "flex", flexDirection: "column",
-              maxHeight: "calc(100vh - 80px)",
+              maxHeight: "calc(100vh - 32px)",
               animation: "am-content-in 0.22s cubic-bezier(.2,.7,.2,1) both",
               pointerEvents: "all", outline: "none",
               ...FONT,
