@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import PageTable, { TD, TD_MONO, Dim, KebabBtn, Pill, StackCell, Avatar, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import PageTable, { TD, TD_MONO, Dim, RowActions, Pill, StackCell, Avatar, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import AddLoadModal, { type LoadRow } from "@/components/operations/AddLoadModal";
 import LoadNotesPanel, { type LoadSummary } from "@/components/operations/LoadNotesPanel";
 import NotesBtn from "@/components/operations/NotesBtn";
@@ -39,6 +39,14 @@ export default function DeliveredLoadsTable() {
   const qc = useQueryClient();
   const { data: allLoads = [], isLoading } = useQuery({ queryKey: ["loads"], queryFn: fetchLoads });
   const delivered = allLoads.filter(l => l.status === "DELIVERED");
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/loads/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["loads"] }),
+  });
 
   const [search,    setSearch]    = useState("");
   const [finFilter, setFinFilter] = useState("all");
@@ -116,7 +124,11 @@ export default function DeliveredLoadsTable() {
                 <NotesBtn count={load.notesCount ?? 0} onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })} />
               </td>
               <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
-                <KebabBtn onClick={() => { setEditLoad(load); setModalOpen(true); }} />
+                <RowActions
+                  label={`#${load.loadNumber}`}
+                  onEdit={() => { setEditLoad(load); setModalOpen(true); }}
+                  onDelete={() => deleteMutation.mutate(load.id)}
+                />
               </td>
             </>
           );

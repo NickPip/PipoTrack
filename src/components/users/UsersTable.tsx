@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import PageTable, { TD, TD_MONO, Dim, KebabBtn, Pill, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import PageTable, { TD, TD_MONO, Dim, RowActions, Pill, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import UserModal, { type UserRow } from "@/components/users/UserModal";
 
@@ -90,7 +90,11 @@ export default function UsersTable() {
               </td>
               <td style={{ ...TD, borderBottom: nb }}>{user.emergencyContact ?? <Dim />}</td>
               <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
-                <KebabBtn onClick={() => { setEditUser(user); setModalOpen(true); }} />
+                <RowActions
+                  label={`${user.name} ${user.surname}`}
+                  onEdit={() => { setEditUser(user); setModalOpen(true); }}
+                  onDelete={() => deleteMutation.mutate(user.id)}
+                />
               </td>
             </>
           );

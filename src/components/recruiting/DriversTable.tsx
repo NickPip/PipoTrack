@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import PageTable, { TD, Dim, KebabBtn, Pill, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import PageTable, { TD, Dim, RowActions, Pill, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import DriverModal, { type DriverRow } from "@/components/recruiting/DriverModal";
 
 async function fetchDrivers(): Promise<DriverRow[]> {
@@ -83,7 +83,11 @@ export default function DriversTable() {
                 {bgLabel ? <Pill label={bgLabel} variant={bgVariant} /> : <Dim />}
               </td>
               <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
-                <KebabBtn onClick={() => { setEditDriver(driver); setModalOpen(true); }} />
+                <RowActions
+                  label={driver.name}
+                  onEdit={() => { setEditDriver(driver); setModalOpen(true); }}
+                  onDelete={() => deleteMutation.mutate(driver.id)}
+                />
               </td>
             </>
           );

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import PageTable, { TD, TD_MONO, Dim, KebabBtn, Pill, StackCell, Avatar, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import PageTable, { TD, TD_MONO, Dim, RowActions, Pill, StackCell, Avatar, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import AddLoadModal, { type LoadRow } from "@/components/operations/AddLoadModal";
 import LoadNotesPanel, { type LoadSummary } from "@/components/operations/LoadNotesPanel";
 import NotesBtn from "@/components/operations/NotesBtn";
@@ -140,7 +140,11 @@ export default function LoadsTable() {
                 <NotesBtn count={load.notesCount ?? 0} onClick={() => setNotesLoad({ id: load.id, loadNumber: load.loadNumber, broker: load.broker, trackingName: load.trackingName, dispatcherName: load.dispatcherName, pickupAddress: load.pickupAddress, pickupDate: load.pickupDate, deliveryAddress: load.deliveryAddress, deliveryDate: load.deliveryDate })} />
               </td>
               <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
-                <KebabBtn onClick={() => { setEditLoad(load); setModalOpen(true); }} />
+                <RowActions
+                  label={`#${load.loadNumber}`}
+                  onEdit={() => { setEditLoad(load); setModalOpen(true); }}
+                  onDelete={() => deleteMutation.mutate(load.id)}
+                />
               </td>
             </>
           );

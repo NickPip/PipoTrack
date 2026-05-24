@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import PageTable, { TD, Dim, KebabBtn, Pill, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import PageTable, { TD, Dim, RowActions, Pill, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import OwnerModal, { type OwnerRow } from "@/components/recruiting/OwnerModal";
 
 async function fetchOwners(): Promise<OwnerRow[]> {
@@ -78,7 +78,11 @@ export default function OwnersTable() {
                   : <Dim />}
               </td>
               <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
-                <KebabBtn onClick={() => { setEditOwner(owner); setModalOpen(true); }} />
+                <RowActions
+                  label={owner.name}
+                  onEdit={() => { setEditOwner(owner); setModalOpen(true); }}
+                  onDelete={() => deleteMutation.mutate(owner.id)}
+                />
               </td>
             </>
           );

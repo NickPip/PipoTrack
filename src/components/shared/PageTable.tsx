@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 
@@ -47,6 +48,80 @@ export function KebabBtn({ onClick }: { onClick: () => void }) {
         <circle cx="7" cy="2.5" r="1.2" /><circle cx="7" cy="7" r="1.2" /><circle cx="7" cy="11.5" r="1.2" />
       </svg>
     </button>
+  );
+}
+
+export function RowActions({ onEdit, onDelete, label }: { onEdit: () => void; onDelete: () => void; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const itemBase: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 8,
+    width: "100%", padding: "7px 12px",
+    background: "none", border: "none", cursor: "pointer",
+    fontSize: 13, color: "var(--ink-1)", textAlign: "left",
+    fontFamily: "inherit", transition: "background 0.1s",
+  };
+
+  return (
+    <>
+      <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+        <button
+          onClick={() => setOpen(v => !v)}
+          aria-label="Row actions"
+          style={{ width: 28, height: 28, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--ink-3)", transition: "background 0.14s, color 0.14s" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-soft)"; e.currentTarget.style.color = "var(--ink-1)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink-3)"; }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+            <circle cx="7" cy="2.5" r="1.2" /><circle cx="7" cy="7" r="1.2" /><circle cx="7" cy="11.5" r="1.2" />
+          </svg>
+        </button>
+        {open && (
+          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 50, minWidth: 130, background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)", padding: "4px 0", overflow: "hidden" }}>
+            <button
+              style={itemBase}
+              onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-soft)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "none")}
+              onClick={() => { setOpen(false); onEdit(); }}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.5 1.5l2 2L4 11H2v-2L9.5 1.5z" />
+              </svg>
+              Edit
+            </button>
+            <button
+              style={{ ...itemBase, color: "var(--danger)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "var(--danger-bg)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "none")}
+              onClick={() => { setOpen(false); setConfirming(true); }}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="2,3.5 11,3.5" /><path d="M4.5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1" /><path d="M4 3.5l.5 7h4l.5-7" />
+              </svg>
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={confirming}
+        label={label}
+        onConfirm={() => { setConfirming(false); onDelete(); }}
+        onCancel={() => setConfirming(false)}
+      />
+    </>
   );
 }
 

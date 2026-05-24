@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import PageTable, { TD, Dim, KebabBtn, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import PageTable, { TD, Dim, RowActions, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import UnitModal, { type UnitRow } from "@/components/recruiting/UnitModal";
 
 const TYPE_OPTIONS = [
@@ -164,7 +164,11 @@ export default function UnitsTable() {
                 />
               </td>
               <td style={{ ...TD, ...LAST_TD, borderBottom: nb, textAlign: "right" }}>
-                <KebabBtn onClick={() => { setEditUnit(unit); setModalOpen(true); }} />
+                <RowActions
+                  label={unit.unitNumber}
+                  onEdit={() => { setEditUnit(unit); setModalOpen(true); }}
+                  onDelete={() => deleteMutation.mutate(unit.id)}
+                />
               </td>
             </>
           );
