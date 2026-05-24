@@ -69,6 +69,7 @@ export async function GET() {
     pictureUrls: u.pictureUrls,
     drivers: u.drivers,
     driverCount: u.drivers.length,
+    available: u.available,
   }));
 
   return NextResponse.json(result);

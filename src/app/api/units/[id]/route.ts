@@ -82,6 +82,27 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/units/[id]">
   return NextResponse.json(unit);
 }
 
+export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/units/[id]">) {
+  const session = await auth();
+  const role = session?.user?.role as Role | undefined;
+  if (!role || !canAccess(role, "recruiting")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await ctx.params;
+  const body = await req.json();
+  const parsed = z.object({ available: z.boolean() }).safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const unit = await prisma.unit.update({
+    where: { id },
+    data: { available: parsed.data.available },
+  });
+  return NextResponse.json(unit);
+}
+
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/units/[id]">) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;

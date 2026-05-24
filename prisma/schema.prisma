@@ -77,6 +77,7 @@ model Unit {
   dimensions      Json?
   registrationUrl String?
   pictureUrls     Json?
+  available       Boolean  @default(true)
   drivers         Driver[]
 }
 

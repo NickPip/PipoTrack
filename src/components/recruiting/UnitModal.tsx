@@ -56,6 +56,7 @@ export interface UnitRow {
   pictureUrls?: string[] | null;
   drivers: { id: string; name: string }[];
   driverCount: number;
+  available?: boolean;
 }
 
 interface OwnerOption { id: string; name: string }
