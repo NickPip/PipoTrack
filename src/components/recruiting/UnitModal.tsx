@@ -336,10 +336,10 @@ export default function UnitModal({ open, onClose, onSaved, unit }: UnitModalPro
       <DP.Portal>
         <DP.Overlay
           className="am-overlay"
-          style={{ position: "fixed", inset: 0, background: "rgba(11,11,12,0.42)", zIndex: 50 }}
+          style={{ position: "fixed", inset: 0, background: "rgba(11,11,12,0.42)", zIndex: 110 }}
         />
 
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", pointerEvents: "none" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", pointerEvents: "none" }}>
           <DP.Content
             onInteractOutside={e => { e.preventDefault(); handleClose(); }}
             onEscapeKeyDown={e => { e.preventDefault(); handleClose(); }}

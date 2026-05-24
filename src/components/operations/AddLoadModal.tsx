@@ -129,7 +129,7 @@ function Sect({ n, label }: { n: number; label: string }) {
   );
 }
 
-function Field({ label, required, optional, error, children }: { label: string; required?: boolean; optional?: boolean; error?: string; children: React.ReactNode }) {
+function Field({ label, required, optional, hint, error, children }: { label: string; required?: boolean; optional?: boolean; hint?: string; error?: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.005em" }}>
@@ -138,12 +138,13 @@ function Field({ label, required, optional, error, children }: { label: string; 
         {optional && <span style={{ fontSize: 10.5, fontWeight: 500, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginLeft: 4 }}>Optional</span>}
       </span>
       {children}
+      {hint && <span style={{ fontSize: 11.5, color: "var(--ink-4)" }}>{hint}</span>}
       {error && <span style={{ fontSize: 11.5, color: "var(--danger)" }}>{error}</span>}
     </div>
   );
 }
 
-function Ctrl({ err, prefix, suffix, chevron, children }: { err?: boolean; prefix?: string; suffix?: string; chevron?: boolean; children: React.ReactNode }) {
+function Ctrl({ err, prefix, suffix, chevron, children }: { err?: boolean; prefix?: React.ReactNode; suffix?: string; chevron?: boolean; children: React.ReactNode }) {
   return (
     <div className={`am-ctrl${err ? " am-err" : ""}`}>
       {prefix && <span className="am-prefix">{prefix}</span>}
@@ -304,11 +305,11 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
         {/* Scrim */}
         <DP.Overlay
           className="am-overlay"
-          style={{ position: "fixed", inset: 0, background: "rgba(11,11,12,0.42)", zIndex: 50 }}
+          style={{ position: "fixed", inset: 0, background: "rgba(11,11,12,0.42)", zIndex: 110 }}
         />
 
         {/* Centering layer */}
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", pointerEvents: "none" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", pointerEvents: "none" }}>
 
           {/* Modal box */}
           <DP.Content
@@ -331,10 +332,10 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
             <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "20px 24px 16px", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
               <div style={{ flex: 1 }}>
                 <DP.Title style={{ margin: 0, fontSize: 18, fontWeight: 600, letterSpacing: "-0.02em", color: "var(--ink-1)" }}>
-                  {isEdit ? `Edit Load #${load!.loadNumber}` : "Add New Load"}
+                  {isEdit ? `Edit load #${load!.loadNumber}` : "Add new load"}
                 </DP.Title>
                 <DP.Description style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--ink-3)" }}>
-                  Fields marked with * are required.
+                  {isEdit ? "Fields marked with * are required." : "Enter the load's information, pickup and delivery details. Required fields are marked."}
                 </DP.Description>
               </div>
               <button
@@ -363,38 +364,41 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                   <Sect n={1} label="Load Information" />
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-                    {/* Load # (edit) / Broker Ref row */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      {isEdit ? (
-                        <Field label="Load Number">
-                          <Ctrl>
-                            <input className="am-input" value={`#${load!.loadNumber}`} readOnly style={{ color: "var(--ink-3)", cursor: "default" }} />
+                    {/* Broker Ref + Broker */}
+                    {isEdit ? (
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                          <Field label="Load number">
+                            <Ctrl>
+                              <input className="am-input" value={`#${load!.loadNumber}`} readOnly style={{ color: "var(--ink-3)", cursor: "default" }} />
+                            </Ctrl>
+                          </Field>
+                          <Field label="Broker reference" optional>
+                            <Ctrl>
+                              <input className="am-input" {...register("brokerReference")} placeholder="e.g., XPO-558-2024" />
+                            </Ctrl>
+                          </Field>
+                        </div>
+                        <Field label="Broker" required error={errors.broker?.message}>
+                          <Ctrl err={!!errors.broker}>
+                            <input className="am-input" {...register("broker")} placeholder="e.g., XPO Logistics" aria-required="true" />
                           </Ctrl>
                         </Field>
-                      ) : (
-                        <Field label="Broker Reference" optional>
+                      </>
+                    ) : (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                        <Field label="Broker reference" optional hint="Optional — broker's load reference if provided">
                           <Ctrl>
-                            <input className="am-input" {...register("brokerReference")} placeholder="N/A" />
+                            <input className="am-input" {...register("brokerReference")} placeholder="e.g., XPO-558-2024" autoFocus />
                           </Ctrl>
                         </Field>
-                      )}
-                      {isEdit ? (
-                        <Field label="Broker Reference" optional>
-                          <Ctrl>
-                            <input className="am-input" {...register("brokerReference")} placeholder="N/A" />
+                        <Field label="Broker" required error={errors.broker?.message}>
+                          <Ctrl err={!!errors.broker}>
+                            <input className="am-input" {...register("broker")} placeholder="e.g., XPO Logistics" aria-required="true" />
                           </Ctrl>
                         </Field>
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-
-                    {/* Broker */}
-                    <Field label="Broker" required error={errors.broker?.message}>
-                      <Ctrl err={!!errors.broker}>
-                        <input className="am-input" {...register("broker")} placeholder="e.g., XPO Logistics" autoFocus={!isEdit} aria-required="true" />
-                      </Ctrl>
-                    </Field>
+                      </div>
+                    )}
 
                     {/* Dispatcher + Tracking ID */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -406,7 +410,7 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                           </select>
                         </Ctrl>
                       </Field>
-                      <Field label="Tracking ID" required error={errors.trackingId?.message}>
+                      <Field label="Tracking ID" required error={errors.trackingId?.message} hint="Provider tracking number — used to fetch live status">
                         <Ctrl err={!!errors.trackingId} chevron>
                           <select className="am-sel" {...register("trackingId")} aria-required="true">
                             <option value="">Select tracking user</option>
@@ -425,12 +429,12 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                           </select>
                         </Ctrl>
                       </Field>
-                      <Field label="Driver Rate" error={errors.driverRate?.message}>
+                      <Field label="Driver rate" error={errors.driverRate?.message}>
                         <Ctrl prefix="$" suffix="USD">
                           <input className="am-input" {...register("driverRate", { valueAsNumber: true })} type="number" step="0.01" min="0" placeholder="0" style={{ textAlign: "right" }} />
                         </Ctrl>
                       </Field>
-                      <Field label="Total Rate" error={errors.rate?.message}>
+                      <Field label="Total rate" error={errors.rate?.message}>
                         <Ctrl prefix="$" suffix="USD">
                           <input className="am-input" {...register("rate", { valueAsNumber: true })} type="number" step="0.01" min="0" placeholder="0" style={{ textAlign: "right" }} />
                         </Ctrl>
@@ -444,19 +448,19 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                   <Sect n={2} label="Pickup Details" />
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <Field label="Pickup Address" required error={errors.pickupAddress?.message}>
+                      <Field label="Pickup address" required error={errors.pickupAddress?.message}>
                         <Ctrl err={!!errors.pickupAddress}>
-                          <input className="am-input" {...register("pickupAddress")} placeholder="e.g., MS 38706" aria-required="true" />
+                          <input className="am-input" {...register("pickupAddress")} placeholder="e.g., 1402 Industrial Pkwy, Jackson, MS 38706" aria-required="true" />
                         </Ctrl>
                       </Field>
-                      <Field label="Pickup Time" required error={errors.pickupDate?.message}>
-                        <Ctrl err={!!errors.pickupDate}>
+                      <Field label="Pickup time" required error={errors.pickupDate?.message} hint="Use 24-hour MM/DD HH:mm">
+                        <Ctrl err={!!errors.pickupDate} prefix={<svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="13" height="11" rx="2"/><path d="M1 7h13M5 1v4M10 1v4"/></svg>}>
                           <input className="am-input" {...register("pickupDate")} placeholder="e.g., 11/03 18:30" aria-required="true" />
                         </Ctrl>
                       </Field>
                     </div>
-                    <Field label="Pickup Notes" optional>
-                      <textarea className="am-ta" {...register("pickupNotes")} placeholder="Additional pickup instructions..." />
+                    <Field label="Pickup notes" optional>
+                      <textarea className="am-ta" {...register("pickupNotes")} placeholder="Dock door 14 · gate code 3349 · driver must call 30 min ahead" />
                     </Field>
                   </div>
                 </section>
@@ -466,18 +470,18 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                   <Sect n={3} label="Delivery Details" />
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <Field label="Delivery Address" required error={errors.deliveryAddress?.message}>
+                      <Field label="Delivery address" required error={errors.deliveryAddress?.message}>
                         <Ctrl err={!!errors.deliveryAddress}>
-                          <input className="am-input" {...register("deliveryAddress")} placeholder="e.g., MI 48235" aria-required="true" />
+                          <input className="am-input" {...register("deliveryAddress")} placeholder="e.g., 4820 Livernois Ave, Detroit, MI 48210" aria-required="true" />
                         </Ctrl>
                       </Field>
-                      <Field label="Delivery Time" required error={errors.deliveryDate?.message}>
-                        <Ctrl err={!!errors.deliveryDate}>
+                      <Field label="Delivery time" required error={errors.deliveryDate?.message} hint="Use 24-hour MM/DD HH:mm">
+                        <Ctrl err={!!errors.deliveryDate} prefix={<svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="13" height="11" rx="2"/><path d="M1 7h13M5 1v4M10 1v4"/></svg>}>
                           <input className="am-input" {...register("deliveryDate")} placeholder="e.g., 11/04 08:30" aria-required="true" />
                         </Ctrl>
                       </Field>
                     </div>
-                    <Field label="Delivery Notes" optional>
+                    <Field label="Delivery notes" optional>
                       <textarea className="am-ta" {...register("deliveryNotes")} placeholder="Additional delivery instructions..." />
                     </Field>
                   </div>
@@ -548,6 +552,21 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                 {uploadWarning ? "Close" : "Cancel"}
               </button>
 
+              {/* Save draft (new loads only) */}
+              {!isEdit && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{ height: 36, padding: "0 14px", borderRadius: 10, border: "1px solid var(--line-strong)", background: "transparent", fontSize: 13, fontWeight: 500, color: "var(--ink-1)", cursor: "pointer", letterSpacing: "-0.005em", transition: "background 0.14s", ...FONT }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-soft)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                  onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(1px)"; }}
+                  onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+                >
+                  Save draft
+                </button>
+              )}
+
               {/* Create / Save */}
               <button
                 type="submit"
@@ -564,7 +583,7 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                     <path d="M6.5 1.5 A5 5 0 0 1 11.5 6.5" />
                   </svg>
                 )}
-                {isSubmitting ? "Saving…" : isEdit ? "Save Changes" : "Add Load"}
+                {isSubmitting ? "Saving…" : isEdit ? "Save changes" : "Create load"}
               </button>
             </div>
 

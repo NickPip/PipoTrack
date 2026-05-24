@@ -158,7 +158,7 @@
 .am-ctrl {
   position: relative; display: flex; align-items: stretch;
   height: 38px; border: 1px solid var(--line); border-radius: 10px;
-  background: var(--paper); overflow: hidden;
+  background: var(--paper); overflow: clip;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .am-ctrl:hover { border-color: var(--line-strong); }
