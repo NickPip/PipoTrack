@@ -101,6 +101,12 @@ model Driver {
   telegramId       String?
   traccarDeviceId  String?
   unitId           String?
+  outMiles         Int?
+  minMiles         Int?             @default(0)
+  maxMiles         Int?             @default(5000)
+  wayDirection     String?          @default("ANY")
+  isAvailable      Boolean          @default(true)
+  availableAt      DateTime?
   unit             Unit?            @relation(fields: [unitId], references: [id])
   bids             Bid[]
   location         DriverLocation?
