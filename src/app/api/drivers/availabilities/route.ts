@@ -52,6 +52,7 @@ export async function GET() {
       unitDimensions: d.unit?.dimensions ?? null,
       locationUpdatedAt: d.location?.updatedAt ?? null,
       isOnline: isRecent,
+      dlNumber: d.dlNumber,
       outMiles: d.outMiles ?? 75,
       minMiles: d.minMiles ?? 0,
       maxMiles: d.maxMiles ?? 5000,
