@@ -82,7 +82,7 @@ model Unit {
 }
 
 model Driver {
-  id               String   @id @default(cuid())
+  id               String           @id @default(cuid())
   name             String
   phone            String?
   address          String?
@@ -99,9 +99,24 @@ model Driver {
   currentZip       String?
   searchRadius     Int?
   telegramId       String?
+  traccarDeviceId  String?
   unitId           String?
-  unit             Unit?    @relation(fields: [unitId], references: [id])
+  unit             Unit?            @relation(fields: [unitId], references: [id])
   bids             Bid[]
+  location         DriverLocation?
+}
+
+model DriverLocation {
+  id        String   @id @default(cuid())
+  driverId  String   @unique
+  lat       Float
+  lon       Float
+  speed     Float?
+  bearing   Float?
+  altitude  Float?
+  accuracy  Float?
+  updatedAt DateTime @updatedAt
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 }
 
 model Load {
