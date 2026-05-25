@@ -140,17 +140,22 @@ export async function GET() {
 
     if (loc && locFresh) {
       const driverPos = { latitude: loc.lat, longitude: loc.lon };
-      const pickupZip = extractZip(l.pickupAddress);
+      const toDelivery = l.status === "LOADED_AND_DELIVERING" || l.status === "ONSITE_FOR_DELIVERY";
+
+      const pickupZip   = extractZip(l.pickupAddress);
       const deliveryZip = extractZip(l.deliveryAddress);
-      const pickupCoords = pickupZip ? zipToCoords(pickupZip) : null;
+      const pickupCoords   = pickupZip   ? zipToCoords(pickupZip)   : null;
       const deliveryCoords = deliveryZip ? zipToCoords(deliveryZip) : null;
 
-      if (pickupCoords) {
-        coveredMiles = metersToMiles(getDistance(pickupCoords, driverPos));
+      if (toDelivery) {
+        // Covered = pickup → driver, Remaining = driver → delivery
+        if (pickupCoords)   coveredMiles   = metersToMiles(getDistance(pickupCoords, driverPos));
+        if (deliveryCoords) remainingMiles = metersToMiles(getDistance(driverPos, deliveryCoords));
+      } else {
+        // Heading to pickup: Remaining = driver → pickup, covered not yet applicable
+        if (pickupCoords) remainingMiles = metersToMiles(getDistance(driverPos, pickupCoords));
       }
-      if (deliveryCoords) {
-        remainingMiles = metersToMiles(getDistance(driverPos, deliveryCoords));
-      }
+
       isMoving = (loc.speed ?? 0) > 0;
     }
 

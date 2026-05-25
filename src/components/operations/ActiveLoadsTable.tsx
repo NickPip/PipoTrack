@@ -16,20 +16,20 @@ const ACTIVE_STATUSES = new Set([
 ]);
 
 const STATUS_OPTIONS = [
-  { value: "PENDING",               label: "Pending"     },
-  { value: "DISPATCHED_TO_PICKUP",  label: "Dispatched"  },
-  { value: "ONSITE_FOR_PICKUP",     label: "At Pickup"   },
-  { value: "LOADED_AND_DELIVERING", label: "In Transit"  },
-  { value: "ONSITE_FOR_DELIVERY",   label: "At Delivery" },
+  { value: "PENDING",               label: "Pending"              },
+  { value: "DISPATCHED_TO_PICKUP",  label: "Dispatched to Pickup" },
+  { value: "ONSITE_FOR_PICKUP",     label: "OnSite for Pickup"    },
+  { value: "LOADED_AND_DELIVERING", label: "Loaded and Delivering"},
+  { value: "ONSITE_FOR_DELIVERY",   label: "OnSite for Delivery"  },
 ];
 
 type StatusVariant = "dispatched" | "atPickup" | "inTransit";
 const STATUS_MAP: Record<string, { label: string; variant: StatusVariant }> = {
-  PENDING:               { label: "Pending",     variant: "dispatched" },
-  DISPATCHED_TO_PICKUP:  { label: "Dispatched",  variant: "dispatched" },
-  ONSITE_FOR_PICKUP:     { label: "At Pickup",   variant: "atPickup"   },
-  LOADED_AND_DELIVERING: { label: "In Transit",  variant: "inTransit"  },
-  ONSITE_FOR_DELIVERY:   { label: "At Delivery", variant: "atPickup"   },
+  PENDING:               { label: "Pending",               variant: "dispatched" },
+  DISPATCHED_TO_PICKUP:  { label: "Dispatched to Pickup",  variant: "dispatched" },
+  ONSITE_FOR_PICKUP:     { label: "OnSite for Pickup",     variant: "atPickup"   },
+  LOADED_AND_DELIVERING: { label: "Loaded and Delivering", variant: "inTransit"  },
+  ONSITE_FOR_DELIVERY:   { label: "OnSite for Delivery",   variant: "atPickup"   },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -222,11 +222,19 @@ export default function ActiveLoadsTable() {
               <td style={{ ...TD, borderBottom: nb, whiteSpace: "nowrap" }}>
                 {load.coveredMiles != null || load.remainingMiles != null ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontFamily: "var(--font-geist-mono, monospace)" }}>
-                    <span style={{ color: "#22c55e" }}>●</span>
-                    <span>{load.coveredMiles ?? "—"}</span>
-                    <span style={{ color: "var(--ink-3)" }}>/</span>
-                    <span style={{ color: "#f59e0b" }}>●</span>
-                    <span>{load.remainingMiles ?? "—"}</span>
+                    {load.coveredMiles != null && (
+                      <>
+                        <span style={{ color: "#22c55e" }}>●</span>
+                        <span>{load.coveredMiles}</span>
+                        <span style={{ color: "var(--ink-3)" }}>/</span>
+                      </>
+                    )}
+                    {load.remainingMiles != null && (
+                      <>
+                        <span style={{ color: "#f59e0b" }}>●</span>
+                        <span>{load.remainingMiles}</span>
+                      </>
+                    )}
                   </div>
                 ) : <Dim />}
               </td>
