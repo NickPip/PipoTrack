@@ -85,31 +85,41 @@ export async function GET() {
       ? now - d.location.updatedAt.getTime() < ONLINE_THRESHOLD_MS
       : false;
 
-    let city: string | null = null;
-    let state: string | null = null;
-    let displayZip: string | null = d.currentZip ?? null;
+    // Delivery ZIP — always the manually-set value on the driver record
+    const deliveryZip = d.currentZip ?? null;
+    let deliveryCity: string | null = null;
+    let deliveryState: string | null = null;
+    if (deliveryZip) {
+      const geo = zipcodes.lookup(deliveryZip);
+      if (geo) { deliveryCity = geo.city; deliveryState = geo.state; }
+    }
+
+    // Current location — live GPS position
+    let gpsCity: string | null = null;
+    let gpsState: string | null = null;
+    let gpsZip: string | null = null;
     let streetAddress: string | null = null;
 
     if (d.location && isRecent) {
       const geoByCoords = zipcodes.lookupByCoords(d.location.lat, d.location.lon);
       if (geoByCoords && US_STATES.has(geoByCoords.state)) {
-        city = geoByCoords.city;
-        state = geoByCoords.state;
-        displayZip = geoByCoords.zip;
+        gpsCity = geoByCoords.city;
+        gpsState = geoByCoords.state;
+        gpsZip = geoByCoords.zip;
       }
       streetAddress = await reverseGeocode(d.location.lat, d.location.lon);
-    } else if (d.currentZip) {
-      const geo = zipcodes.lookup(d.currentZip);
-      if (geo) { city = geo.city; state = geo.state; }
     }
 
     return {
       id: d.id,
       name: d.name,
       vehicleType: d.vehicleType,
-      currentZip: displayZip,
-      city,
-      state,
+      currentZip: deliveryZip,
+      city: deliveryCity,
+      state: deliveryState,
+      gpsCity,
+      gpsState,
+      gpsZip,
       streetAddress,
       unitNumber: d.unit?.unitNumber ?? null,
       unitDimensions: d.unit?.dimensions ?? null,

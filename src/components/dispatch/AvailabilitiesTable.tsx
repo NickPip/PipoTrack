@@ -12,6 +12,9 @@ interface AvailDriver {
   currentZip: string | null;
   city: string | null;
   state: string | null;
+  gpsCity: string | null;
+  gpsState: string | null;
+  gpsZip: string | null;
   streetAddress: string | null;
   unitNumber: string | null;
   unitDimensions: { length?: number; width?: number; height?: number } | null;
@@ -558,6 +561,7 @@ export default function AvailabilitiesTable() {
                 <tr>
                   <th style={{ ...headerCell, width: 80 }}>Unit</th>
                   <th style={{ ...headerCell }}>Driver</th>
+                  <th style={{ ...headerCell }}>Current Location</th>
                   <th style={{ ...headerCell }}>Delivery Location / ZIP</th>
                   <th style={{ ...headerCell }}>Truck</th>
                   <th style={{ ...headerCell }}>
@@ -638,37 +642,41 @@ export default function AvailabilitiesTable() {
                         </div>
                       </td>
 
-                      {/* Location */}
+                      {/* Current Location (live GPS) */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
                         {driver.streetAddress ? (
                           <>
                             <div style={{ fontSize: 13, color: "#18181b", maxWidth: 220 }}>
                               {driver.streetAddress}
                             </div>
-                            <div
-                              style={{
-                                fontSize: 11.5,
-                                color: "#a1a1aa",
-                                fontFamily: "var(--font-geist-mono, monospace)",
-                                marginTop: 1,
-                              }}
-                            >
-                              {driver.state} {driver.currentZip}
+                            {driver.gpsZip && (
+                              <div style={{ fontSize: 11.5, color: "#a1a1aa", fontFamily: "var(--font-geist-mono, monospace)", marginTop: 1 }}>
+                                {driver.gpsState} {driver.gpsZip}
+                              </div>
+                            )}
+                          </>
+                        ) : driver.gpsCity ? (
+                          <>
+                            <div style={{ fontSize: 13, color: "#18181b" }}>
+                              {driver.gpsCity}, {driver.gpsState}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: "#a1a1aa", fontFamily: "var(--font-geist-mono, monospace)", marginTop: 1 }}>
+                              {driver.gpsState} {driver.gpsZip}
                             </div>
                           </>
-                        ) : driver.city ? (
+                        ) : (
+                          <span style={{ fontSize: 13, color: "#d4d4d8" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Delivery Location / ZIP (manually set) */}
+                      <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
+                        {driver.city ? (
                           <>
                             <div style={{ fontSize: 13, color: "#18181b" }}>
                               {driver.city}, {driver.state}
                             </div>
-                            <div
-                              style={{
-                                fontSize: 11.5,
-                                color: "#a1a1aa",
-                                fontFamily: "var(--font-geist-mono, monospace)",
-                                marginTop: 1,
-                              }}
-                            >
+                            <div style={{ fontSize: 11.5, color: "#a1a1aa", fontFamily: "var(--font-geist-mono, monospace)", marginTop: 1 }}>
                               {driver.state} {driver.currentZip}
                             </div>
                           </>
