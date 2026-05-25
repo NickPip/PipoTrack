@@ -12,6 +12,7 @@ interface AvailDriver {
   currentZip: string | null;
   city: string | null;
   state: string | null;
+  streetAddress: string | null;
   unitNumber: string | null;
   unitDimensions: { length?: number; width?: number; height?: number } | null;
   locationUpdatedAt: string | null;
@@ -639,10 +640,26 @@ export default function AvailabilitiesTable() {
 
                       {/* Location */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
-                        {driver.city ? (
+                        {driver.streetAddress ? (
+                          <>
+                            <div style={{ fontSize: 13, color: "#18181b", maxWidth: 220 }}>
+                              {driver.streetAddress}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 11.5,
+                                color: "#a1a1aa",
+                                fontFamily: "var(--font-geist-mono, monospace)",
+                                marginTop: 1,
+                              }}
+                            >
+                              {driver.state} {driver.currentZip}
+                            </div>
+                          </>
+                        ) : driver.city ? (
                           <>
                             <div style={{ fontSize: 13, color: "#18181b" }}>
-                              {driver.city}, {driver.state === "DC" ? "DC" : driver.state}
+                              {driver.city}, {driver.state}
                             </div>
                             <div
                               style={{
