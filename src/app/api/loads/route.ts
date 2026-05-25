@@ -4,6 +4,25 @@ import { prisma } from "@/lib/prisma";
 import { canAccess } from "@/lib/rbac";
 import { Role, LoadStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
+import { getDistance } from "geolib";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const zipcodes = require("zipcodes") as {
+  lookup: (zip: string) => { latitude: number; longitude: number } | null;
+};
+
+function extractZip(address: string): string | null {
+  const m = address.match(/\b(\d{5})(-\d{4})?\b/);
+  return m ? m[1] : null;
+}
+
+function zipToCoords(zip: string): { latitude: number; longitude: number } | null {
+  return zipcodes.lookup(zip);
+}
+
+function metersToMiles(m: number) {
+  return Math.round(m / 1609.34);
+}
 
 function parseDateTime(value: string): Date {
   // Accept ISO string or "MM/DD HH:mm"
@@ -95,22 +114,58 @@ export async function GET() {
       ? prisma.unit.findMany({ where: { id: { in: unitIds } }, select: { id: true, unitNumber: true } })
       : Promise.resolve([]),
     driverIds.length
-      ? prisma.driver.findMany({ where: { id: { in: driverIds } }, select: { id: true, name: true } })
+      ? prisma.driver.findMany({
+          where: { id: { in: driverIds } },
+          select: { id: true, name: true, location: { select: { lat: true, lon: true, speed: true, updatedAt: true } } },
+        })
       : Promise.resolve([]),
   ]);
 
   const userMap   = Object.fromEntries(users.map((u) => [u.id, `${u.name} ${u.surname}`]));
   const unitMap   = Object.fromEntries(unitRows.map((u) => [u.id, u.unitNumber]));
   const driverMap = Object.fromEntries(driverRows.map((d) => [d.id, d.name]));
+  const locationMap = Object.fromEntries(
+    driverRows.map((d) => [d.id, d.location ?? null])
+  );
 
-  const result = loads.map((l) => ({
-    ...l,
-    dispatcherName: l.dispatcherId ? (userMap[l.dispatcherId] ?? null) : null,
-    trackingName:   l.trackingId   ? (userMap[l.trackingId]   ?? null) : null,
-    unitNumber:     l.unitId       ? (unitMap[l.unitId]        ?? null) : null,
-    driverName:     l.driverId     ? (driverMap[l.driverId]    ?? null) : null,
-    notesCount: l._count.notes,
-  }));
+  const ONLINE_MS = 30 * 60 * 1000;
+
+  const result = loads.map((l) => {
+    const loc = l.driverId ? locationMap[l.driverId] : null;
+    const locFresh = loc ? Date.now() - new Date(loc.updatedAt).getTime() < ONLINE_MS : false;
+
+    let coveredMiles: number | null = null;
+    let remainingMiles: number | null = null;
+    let isMoving: boolean | null = null;
+
+    if (loc && locFresh) {
+      const driverPos = { latitude: loc.lat, longitude: loc.lon };
+      const pickupZip = extractZip(l.pickupAddress);
+      const deliveryZip = extractZip(l.deliveryAddress);
+      const pickupCoords = pickupZip ? zipToCoords(pickupZip) : null;
+      const deliveryCoords = deliveryZip ? zipToCoords(deliveryZip) : null;
+
+      if (pickupCoords) {
+        coveredMiles = metersToMiles(getDistance(pickupCoords, driverPos));
+      }
+      if (deliveryCoords) {
+        remainingMiles = metersToMiles(getDistance(driverPos, deliveryCoords));
+      }
+      isMoving = (loc.speed ?? 0) > 0;
+    }
+
+    return {
+      ...l,
+      dispatcherName: l.dispatcherId ? (userMap[l.dispatcherId] ?? null) : null,
+      trackingName:   l.trackingId   ? (userMap[l.trackingId]   ?? null) : null,
+      unitNumber:     l.unitId       ? (unitMap[l.unitId]        ?? null) : null,
+      driverName:     l.driverId     ? (driverMap[l.driverId]    ?? null) : null,
+      notesCount: l._count.notes,
+      coveredMiles,
+      remainingMiles,
+      isMoving,
+    };
+  });
 
   return NextResponse.json(result);
 }

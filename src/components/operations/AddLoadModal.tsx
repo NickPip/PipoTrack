@@ -75,6 +75,9 @@ export interface LoadRow {
   bolUrls?: string[] | null;
   podUrl?: string | null;
   notesCount?: number;
+  coveredMiles?: number | null;
+  remainingMiles?: number | null;
+  isMoving?: boolean | null;
   createdAt: string;
 }
 

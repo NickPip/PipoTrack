@@ -181,6 +181,8 @@ export default function ActiveLoadsTable() {
           { label: "",              width: 18          },
           { label: "Destination"                       },
           { label: "Assigned Unit"                     },
+          { label: "Distance",      width: 110         },
+          { label: "Movement",      width: 90          },
           { label: "Rate",          align: "right"     },
           { label: "",              width: 80          },
           { label: "",              width: 48          },
@@ -215,6 +217,41 @@ export default function ActiveLoadsTable() {
                   ? <StackCell top={load.unitNumber} sub={load.driverName ?? "No driver"} />
                   : <Dim />}
               </td>
+
+              {/* Distance */}
+              <td style={{ ...TD, borderBottom: nb, whiteSpace: "nowrap" }}>
+                {load.coveredMiles != null || load.remainingMiles != null ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontFamily: "var(--font-geist-mono, monospace)" }}>
+                    <span style={{ color: "#22c55e" }}>●</span>
+                    <span>{load.coveredMiles ?? "—"}</span>
+                    <span style={{ color: "var(--ink-3)" }}>/</span>
+                    <span style={{ color: "#f59e0b" }}>●</span>
+                    <span>{load.remainingMiles ?? "—"}</span>
+                  </div>
+                ) : <Dim />}
+              </td>
+
+              {/* Movement */}
+              <td style={{ ...TD, borderBottom: nb }}>
+                {load.isMoving == null ? <Dim /> : load.isMoving ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ color: "#22c55e", fontSize: 14 }}>●</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                      <polyline points="17 6 23 6 23 12" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ color: "#f59e0b", fontSize: 14 }}>●</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b">
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                    </svg>
+                  </div>
+                )}
+              </td>
+
               <td style={{ ...TD, borderBottom: nb, textAlign: "right", fontFamily: "var(--font-geist-mono, monospace)", fontSize: 12.5 }}>
                 {load.rate != null ? `$${load.rate.toLocaleString()}` : <Dim />}
               </td>
