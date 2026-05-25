@@ -4,8 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { canAccess } from "@/lib/rbac";
 import { Role, LoadStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
-import { getDistance } from "geolib";
-
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const zipcodes = require("zipcodes") as {
   lookup: (zip: string) => { latitude: number; longitude: number } | null;
@@ -22,6 +20,24 @@ function zipToCoords(zip: string): { latitude: number; longitude: number } | nul
 
 function metersToMiles(m: number) {
   return Math.round(m / 1609.34);
+}
+
+async function drivingMiles(
+  from: { latitude: number; longitude: number },
+  to:   { latitude: number; longitude: number }
+): Promise<number | null> {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  if (!token) return null;
+  try {
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${from.longitude},${from.latitude};${to.longitude},${to.latitude}?access_token=${token}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json() as { routes?: { distance: number }[] };
+    const meters = data.routes?.[0]?.distance;
+    return meters != null ? metersToMiles(meters) : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseDateTime(value: string): Date {
@@ -130,47 +146,48 @@ export async function GET() {
 
   const ONLINE_MS = 30 * 60 * 1000;
 
-  const result = loads.map((l) => {
+  // Build all Mapbox distance queries in parallel
+  type DistResult = { coveredMiles: number | null; remainingMiles: number | null; isMoving: boolean | null };
+  const distanceJobs = loads.map(async (l): Promise<DistResult> => {
     const loc = l.driverId ? locationMap[l.driverId] : null;
-    const locFresh = loc ? Date.now() - new Date(loc.updatedAt).getTime() < ONLINE_MS : false;
+    if (!loc || Date.now() - new Date(loc.updatedAt).getTime() >= ONLINE_MS) {
+      return { coveredMiles: null, remainingMiles: null, isMoving: null };
+    }
+
+    const driverPos  = { latitude: loc.lat, longitude: loc.lon };
+    const toDelivery = l.status === "LOADED_AND_DELIVERING" || l.status === "ONSITE_FOR_DELIVERY";
+
+    const pickupZip      = extractZip(l.pickupAddress);
+    const deliveryZip    = extractZip(l.deliveryAddress);
+    const pickupCoords   = pickupZip   ? zipToCoords(pickupZip)   : null;
+    const deliveryCoords = deliveryZip ? zipToCoords(deliveryZip) : null;
 
     let coveredMiles: number | null = null;
     let remainingMiles: number | null = null;
-    let isMoving: boolean | null = null;
 
-    if (loc && locFresh) {
-      const driverPos = { latitude: loc.lat, longitude: loc.lon };
-      const toDelivery = l.status === "LOADED_AND_DELIVERING" || l.status === "ONSITE_FOR_DELIVERY";
-
-      const pickupZip   = extractZip(l.pickupAddress);
-      const deliveryZip = extractZip(l.deliveryAddress);
-      const pickupCoords   = pickupZip   ? zipToCoords(pickupZip)   : null;
-      const deliveryCoords = deliveryZip ? zipToCoords(deliveryZip) : null;
-
-      if (toDelivery) {
-        // Covered = pickup → driver, Remaining = driver → delivery
-        if (pickupCoords)   coveredMiles   = metersToMiles(getDistance(pickupCoords, driverPos));
-        if (deliveryCoords) remainingMiles = metersToMiles(getDistance(driverPos, deliveryCoords));
-      } else {
-        // Heading to pickup: Remaining = driver → pickup, covered not yet applicable
-        if (pickupCoords) remainingMiles = metersToMiles(getDistance(driverPos, pickupCoords));
-      }
-
-      isMoving = (loc.speed ?? 0) > 0;
+    if (toDelivery) {
+      [coveredMiles, remainingMiles] = await Promise.all([
+        pickupCoords   ? drivingMiles(pickupCoords, driverPos)   : Promise.resolve(null),
+        deliveryCoords ? drivingMiles(driverPos, deliveryCoords) : Promise.resolve(null),
+      ]);
+    } else {
+      if (pickupCoords) remainingMiles = await drivingMiles(driverPos, pickupCoords);
     }
 
-    return {
-      ...l,
-      dispatcherName: l.dispatcherId ? (userMap[l.dispatcherId] ?? null) : null,
-      trackingName:   l.trackingId   ? (userMap[l.trackingId]   ?? null) : null,
-      unitNumber:     l.unitId       ? (unitMap[l.unitId]        ?? null) : null,
-      driverName:     l.driverId     ? (driverMap[l.driverId]    ?? null) : null,
-      notesCount: l._count.notes,
-      coveredMiles,
-      remainingMiles,
-      isMoving,
-    };
+    return { coveredMiles, remainingMiles, isMoving: (loc.speed ?? 0) > 0 };
   });
+
+  const distances = await Promise.all(distanceJobs);
+
+  const result = loads.map((l, i) => ({
+    ...l,
+    dispatcherName: l.dispatcherId ? (userMap[l.dispatcherId] ?? null) : null,
+    trackingName:   l.trackingId   ? (userMap[l.trackingId]   ?? null) : null,
+    unitNumber:     l.unitId       ? (unitMap[l.unitId]        ?? null) : null,
+    driverName:     l.driverId     ? (driverMap[l.driverId]    ?? null) : null,
+    notesCount: l._count.notes,
+    ...distances[i],
+  }));
 
   return NextResponse.json(result);
 }

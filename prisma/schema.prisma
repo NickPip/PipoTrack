@@ -191,3 +191,9 @@ model LoadNote {
   createdAt DateTime @default(now())
   load      Load     @relation(fields: [loadId], references: [id], onDelete: Cascade)
 }
+
+model TelegramSession {
+  key       String   @id
+  data      String
+  updatedAt DateTime @updatedAt
+}

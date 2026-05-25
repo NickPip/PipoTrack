@@ -16,10 +16,9 @@ function timeAgo(iso: string): string {
 }
 
 function bidRateLabel(bid: Bid): { text: string; color: string } {
-  if (bid.status === "skipped") return { text: "Skipped", color: "#2563eb" };
-  if (bid.status === "accepted" && bid.amount > 0)
-    return { text: `${bid.amount}$`, color: "#2563eb" };
-  return { text: "N/A", color: "#2563eb" };
+  if (bid.status === "skipped") return { text: "Skipped", color: "#6b7280" };
+  if (bid.amount > 0) return { text: `$${bid.amount}`, color: "#2563eb" };
+  return { text: "N/A", color: "#9ca3af" };
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -193,6 +192,83 @@ const S = {
     minWidth: 90,
   } as React.CSSProperties,
 
+  quotedPanel: {
+    flexShrink: 0,
+    width: 140,
+    borderLeft: "1px solid #f0f0f0",
+    display: "flex",
+    flexDirection: "column",
+    padding: "16px 14px",
+    gap: 8,
+    justifyContent: "center",
+  } as React.CSSProperties,
+
+  quotedPanelUnit: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#111",
+    marginBottom: 2,
+    lineHeight: 1.3,
+  } as React.CSSProperties,
+
+  quotedPanelSub: {
+    fontSize: 11,
+    color: "#9ca3af",
+    marginBottom: 8,
+  } as React.CSSProperties,
+
+  btnBook: {
+    padding: "8px 0",
+    borderRadius: 8,
+    border: "none",
+    background: "#16a34a",
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+  } as React.CSSProperties,
+
+  btnHold: {
+    padding: "8px 0",
+    borderRadius: 8,
+    border: "none",
+    background: "#f97316",
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  } as React.CSSProperties,
+
+  btnArchive: {
+    padding: "8px 0",
+    borderRadius: 8,
+    border: "none",
+    background: "#374151",
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  } as React.CSSProperties,
+
+  // Book confirm modal
+  overlay: {
+    position: "fixed" as const,
+    inset: 0,
+    background: "rgba(0,0,0,0.45)",
+    zIndex: 60,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  confirmBox: {
+    background: "#fff",
+    borderRadius: 14,
+    padding: "28px 28px 24px",
+    width: 400,
+    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+  } as React.CSSProperties,
+
   empty: {
     textAlign: "center" as const,
     padding: "60px 0",
@@ -215,9 +291,148 @@ const S = {
   } as React.CSSProperties,
 };
 
+// ── BookConfirmModal ──────────────────────────────────────────────────────────
+
+function BookConfirmModal({
+  load,
+  onConfirm,
+  onCancel,
+  booking,
+}: {
+  load: DispatchLoad;
+  onConfirm: () => void;
+  onCancel: () => void;
+  booking: boolean;
+}) {
+  const accepted = load.bids.find((b) => b.status === "accepted");
+  const driver = accepted?.driver;
+  const unitLabel = driver?.unit ? `UNIT-${driver.unit.unitNumber}` : "No Unit";
+
+  return (
+    <div style={S.overlay} onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div style={S.confirmBox}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "#111", marginBottom: 6 }}>
+          Book this load?
+        </div>
+        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 18, lineHeight: 1.6 }}>
+          Load <strong>{load.brokerReference ?? `#${load.loadNumber}`}</strong> will be sent to
+          Operations with status <strong>Pending</strong>.
+        </div>
+
+        <div
+          style={{
+            background: "#f9fafb",
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            padding: "14px 16px",
+            marginBottom: 20,
+            fontSize: 13,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: "#111", marginBottom: 4 }}>
+            {load.vehicleRequired} · {load.pickupZip ?? load.pickupAddress} → {load.deliveryZip ?? load.deliveryAddress}
+          </div>
+          {driver && (
+            <div style={{ color: "#6b7280" }}>
+              {unitLabel} / {driver.name}
+            </div>
+          )}
+          {load.rate != null && (
+            <div style={{ color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
+              Rate: ${load.rate.toLocaleString()}
+            </div>
+          )}
+          {load.driverRate != null && (
+            <div style={{ color: "#6b7280" }}>
+              Driver rate: ${load.driverRate.toLocaleString()}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            style={{
+              flex: 1,
+              padding: "11px 0",
+              borderRadius: 8,
+              border: "none",
+              background: "#16a34a",
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: booking ? "not-allowed" : "pointer",
+              opacity: booking ? 0.7 : 1,
+            }}
+            onClick={onConfirm}
+            disabled={booking}
+          >
+            {booking ? "Booking…" : "Confirm Book"}
+          </button>
+          <button
+            style={{
+              flex: 1,
+              padding: "11px 0",
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#fff",
+              color: "#374151",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+            onClick={onCancel}
+            disabled={booking}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── QuotedPanel ───────────────────────────────────────────────────────────────
+
+function QuotedPanel({
+  load,
+  onBook,
+  onArchive,
+}: {
+  load: DispatchLoad;
+  onBook: () => void;
+  onArchive: () => void;
+}) {
+  const accepted = load.bids.find((b) => b.status === "accepted");
+  const driver = accepted?.driver;
+  const unitLabel = driver?.unit ? `UNIT-${driver.unit.unitNumber}` : "—";
+
+  return (
+    <div style={S.quotedPanel}>
+      <div style={S.quotedPanelUnit}>{unitLabel}</div>
+      {driver && <div style={{ ...S.quotedPanelUnit, fontWeight: 400, fontSize: 11 }}>{driver.name}</div>}
+      {accepted && (
+        <div style={S.quotedPanelSub}>Bidded {timeAgo(accepted.createdAt)}</div>
+      )}
+      <button style={S.btnBook} onClick={onBook}>Book</button>
+      <button style={S.btnHold} onClick={() => {}}>Hold</button>
+      <button style={S.btnArchive} onClick={onArchive}>Archive</button>
+    </div>
+  );
+}
+
 // ── LoadCard ──────────────────────────────────────────────────────────────────
 
-function LoadCard({ load, onHide, onOpen }: { load: DispatchLoad; onHide: (id: string) => void; onOpen: (load: DispatchLoad) => void }) {
+function LoadCard({
+  load,
+  onHide,
+  onOpen,
+  onBook,
+}: {
+  load: DispatchLoad;
+  onHide: (id: string) => void;
+  onOpen: (load: DispatchLoad) => void;
+  onBook: (load: DispatchLoad) => void;
+}) {
   const dims = load.dimensions as { pieces?: number; L?: number; W?: number; H?: number } | null;
 
   const subtitle = [
@@ -230,10 +445,15 @@ function LoadCard({ load, onHide, onOpen }: { load: DispatchLoad; onHide: (id: s
     .filter(Boolean)
     .join(" - ");
 
+  const isQuoted = load.status === "QUOTED";
+
   return (
     <div style={S.card}>
       {/* Left — load info (clickable) */}
-      <div style={{ ...S.cardLeft, display: "flex", flexDirection: "column", cursor: "pointer" }} onClick={() => onOpen(load)}>
+      <div
+        style={{ ...S.cardLeft, display: "flex", flexDirection: "column", cursor: "pointer" }}
+        onClick={() => onOpen(load)}
+      >
         <div style={S.cardTitle}>
           <strong>{load.vehicleRequired ?? "UNKNOWN"}</strong>
           {" from "}
@@ -250,10 +470,8 @@ function LoadCard({ load, onHide, onOpen }: { load: DispatchLoad; onHide: (id: s
           </a>
         )}
 
-        {load.status === "QUOTED" && load.rate && (
-          <span style={S.quotedRate}>
-            ✓ Quoted: ${load.rate.toLocaleString()}
-          </span>
+        {isQuoted && load.rate && (
+          <span style={S.quotedRate}>✓ Quoted: ${load.rate.toLocaleString()}</span>
         )}
 
         <div style={{ ...S.cardMeta, marginTop: 12 }}>
@@ -262,7 +480,7 @@ function LoadCard({ load, onHide, onOpen }: { load: DispatchLoad; onHide: (id: s
         </div>
       </div>
 
-      {/* Right — driver grid */}
+      {/* Driver grid */}
       <div style={S.driverGrid}>
         {load.bids.length === 0 ? (
           <div style={{ ...S.driverCell, gridColumn: "1 / -1", color: "#9ca3af", fontSize: 13 }}>
@@ -291,10 +509,18 @@ function LoadCard({ load, onHide, onOpen }: { load: DispatchLoad; onHide: (id: s
         )}
       </div>
 
-      {/* Hide button */}
-      <button style={S.hideBtn} onClick={() => onHide(load.id)}>
-        Hide
-      </button>
+      {/* Right action: Quoted panel or Hide button */}
+      {isQuoted ? (
+        <QuotedPanel
+          load={load}
+          onBook={() => onBook(load)}
+          onArchive={() => onHide(load.id)}
+        />
+      ) : (
+        <button style={S.hideBtn} onClick={() => onHide(load.id)}>
+          Hide
+        </button>
+      )}
     </div>
   );
 }
@@ -308,6 +534,8 @@ export default function LoadBoard() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [modalLoad, setModalLoad] = useState<DispatchLoad | null>(null);
+  const [bookingLoad, setBookingLoad] = useState<DispatchLoad | null>(null);
+  const [booking, setBooking] = useState(false);
 
   const fetchLoads = useCallback(() => {
     setLoading(true);
@@ -326,9 +554,21 @@ export default function LoadBoard() {
 
   const handleHide = (id: string) => setHidden((prev) => new Set([...prev, id]));
 
+  const handleConfirmBook = async () => {
+    if (!bookingLoad) return;
+    setBooking(true);
+    const res = await fetch(`/api/dispatch/loads/${bookingLoad.id}/book`, { method: "POST" });
+    setBooking(false);
+    if (res.ok) {
+      setBookingLoad(null);
+      fetchLoads();
+    }
+  };
+
   const visible = loads.filter((l) => {
     if (hidden.has(l.id)) return false;
-    if (tab === "new" && l.status !== "HAS_BIDS") return false;
+    if (tab === "all"    && l.status !== "PENDING_DISTRIBUTION") return false;
+    if (tab === "new"    && l.status !== "HAS_BIDS") return false;
     if (tab === "quoted" && l.status !== "QUOTED") return false;
     if (search) {
       const q = search.toLowerCase();
@@ -351,6 +591,14 @@ export default function LoadBoard() {
           load={modalLoad}
           onClose={() => setModalLoad(null)}
           onSaved={() => { setModalLoad(null); fetchLoads(); }}
+        />
+      )}
+      {bookingLoad && (
+        <BookConfirmModal
+          load={bookingLoad}
+          onConfirm={handleConfirmBook}
+          onCancel={() => setBookingLoad(null)}
+          booking={booking}
         />
       )}
 
@@ -394,7 +642,7 @@ export default function LoadBoard() {
         <div style={S.empty}>No loads in this view</div>
       ) : (
         visible.map((load) => (
-          <LoadCard key={load.id} load={load} onHide={handleHide} onOpen={setModalLoad} />
+          <LoadCard key={load.id} load={load} onHide={handleHide} onOpen={setModalLoad} onBook={setBookingLoad} />
         ))
       )}
     </div>

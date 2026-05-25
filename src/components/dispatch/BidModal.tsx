@@ -87,7 +87,7 @@ function fmtDate(iso: string): string {
 
 function bidRateLabel(bid: Bid): string {
   if (bid.status === "skipped") return "Skipped";
-  if (bid.status === "accepted" && bid.amount > 0) return `${bid.amount}$`;
+  if (bid.amount > 0) return `$${bid.amount}`;
   return "N/A";
 }
 
@@ -360,7 +360,13 @@ const S = {
 
 export default function BidModal({ load, onClose, onSaved }: BidModalProps) {
   const [selectedBidId, setSelectedBidId] = useState<string>(load.bids[0]?.id ?? "");
-  const [driverRate, setDriverRate] = useState<string>(load.driverRate?.toString() ?? "");
+
+  const firstBid = load.bids[0];
+  const [driverRate, setDriverRate] = useState<string>(
+    firstBid?.amount > 0 && firstBid?.status !== "skipped"
+      ? firstBid.amount.toString()
+      : (load.driverRate?.toString() ?? "")
+  );
   const [ourRate, setOurRate] = useState<string>(load.rate?.toString() ?? "");
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
@@ -437,7 +443,10 @@ export default function BidModal({ load, onClose, onSaved }: BidModalProps) {
               const active = bid.id === selectedBid?.id;
               const unitLabel = bid.driver.unit ? `UNIT - ${bid.driver.unit.unitNumber}` : "No Unit";
               return (
-                <div key={bid.id} style={S.driverCard(active)} onClick={() => setSelectedBidId(bid.id)}>
+                <div key={bid.id} style={S.driverCard(active)} onClick={() => {
+                  setSelectedBidId(bid.id);
+                  if (bid.amount > 0 && bid.status !== "skipped") setDriverRate(bid.amount.toString());
+                }}>
                   <div style={S.driverCardName(active)}>{unitLabel} /</div>
                   <div style={S.driverCardName(active)}>{bid.driver.name}</div>
                   <div style={S.driverCardMeta(active)}>
