@@ -47,11 +47,11 @@ const NAV_ITEMS: NavItem[] = [
 
 function NavDropdownItem({
   label,
-  children,
+  items,
   isActive,
 }: {
   label: string;
-  children: DropdownChild[];
+  items: DropdownChild[];
   isActive: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -117,7 +117,7 @@ function NavDropdownItem({
           transition: "opacity 0.14s ease, transform 0.14s ease",
         }}
       >
-        {children.map((item) => (
+        {items.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -258,7 +258,7 @@ export default function Navbar() {
               <NavDropdownItem
                 key={item.label}
                 label={item.label}
-                children={item.children}
+                items={item.children}
                 isActive={isItemActive(item)}
               />
             );

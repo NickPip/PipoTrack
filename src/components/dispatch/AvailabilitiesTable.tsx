@@ -142,7 +142,12 @@ export default function AvailabilitiesTable() {
       .catch(() => setIsLoading(false));
   }, []);
 
-  useEffect(() => { fetchDrivers(); }, [fetchDrivers]);
+  useEffect(() => {
+    fetch("/api/drivers/availabilities")
+      .then((r) => r.json())
+      .then((d) => { setDrivers(d.drivers ?? []); setIsLoading(false); })
+      .catch(() => setIsLoading(false));
+  }, []);
 
   // ── Derived state ─────────────────────────────────────────────────────────
 

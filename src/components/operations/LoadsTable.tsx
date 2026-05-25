@@ -121,7 +121,7 @@ export default function LoadsTable() {
               <td style={{ ...TD_MONO, ...FIRST_TD, borderBottom: nb }}>#{load.loadNumber}</td>
               <td style={{ ...TD_MONO, color: "var(--ink-3)", borderBottom: nb }}>{load.brokerReference ?? <Dim />}</td>
               <td style={{ ...TD, borderBottom: nb }}>
-                <Pill label={statusCfg.label} variant={statusCfg.variant as any} />
+                <Pill label={statusCfg.label} variant={statusCfg.variant} />
               </td>
               <td style={{ ...TD, borderBottom: nb, whiteSpace: "nowrap" }}>{load.broker}</td>
               <td style={{ ...TD, borderBottom: nb }}>

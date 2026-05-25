@@ -120,6 +120,7 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setApiError(null);
       reset({
         name: user?.name ?? "",

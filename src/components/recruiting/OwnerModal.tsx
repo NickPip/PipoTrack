@@ -110,6 +110,7 @@ export default function OwnerModal({ open, onClose, onSaved, owner }: OwnerModal
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setApiError(null);
       setUploadWarning(null);
       setSsnFiles([]);
