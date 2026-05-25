@@ -16,6 +16,12 @@ enum Role {
 }
 
 enum LoadStatus {
+  // ── Dispatch phase ──────────────────────────────
+  PENDING_DISTRIBUTION  // sent to drivers, awaiting bids  (All tab)
+  HAS_BIDS              // at least one driver bid         (New tab)
+  QUOTED                // dispatcher priced, sent broker  (Quoted tab)
+  BOOKED                // broker confirmed, enters Ops
+  // ── Operations phase ────────────────────────────
   PENDING
   DISPATCHED_TO_PICKUP
   ONSITE_FOR_PICKUP
@@ -128,17 +134,22 @@ model DriverLocation {
 model Load {
   id              String     @id @default(cuid())
   loadNumber      Int        @default(autoincrement())
-  status          LoadStatus @default(PENDING)
+  status          LoadStatus @default(PENDING_DISTRIBUTION)
   financialStatus FinStatus  @default(UNPAID)
   broker          String
+  brokerName      String?
+  brokerEmail     String?
+  brokerPhone     String?
   brokerReference String?
   pickupZip       String?
   pickupAddress   String
   pickupDate      DateTime
   pickupNotes     String?
   deliveryAddress String
+  deliveryZip     String?
   deliveryDate    DateTime
   deliveryNotes   String?
+  stackable       Boolean?
   rate            Float?
   driverRate      Float?
   miles           Float?
