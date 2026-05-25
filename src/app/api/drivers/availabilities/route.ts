@@ -113,7 +113,7 @@ export async function GET() {
     return {
       id: d.id,
       name: d.name,
-      vehicleType: d.vehicleType,
+      vehicleType: d.vehicleType ?? d.unit?.type ?? null,
       currentZip: deliveryZip,
       city: deliveryCity,
       state: deliveryState,
