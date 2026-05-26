@@ -149,6 +149,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
+  await prisma.bid.deleteMany({ where: { loadId: id } });
+  await prisma.loadNote.deleteMany({ where: { loadId: id } });
   await prisma.load.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
