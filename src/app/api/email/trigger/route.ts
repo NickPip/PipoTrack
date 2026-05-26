@@ -19,6 +19,6 @@ export async function POST() {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[email/trigger]", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

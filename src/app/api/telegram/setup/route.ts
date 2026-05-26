@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ webhookUrl, info });
   } catch (err) {
     console.error("[telegram/setup]", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -49,6 +49,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ deleted: true });
   } catch (err) {
     console.error("[telegram/setup DELETE]", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -80,6 +80,6 @@ export async function POST(
     return NextResponse.json({ load: updated });
   } catch (err) {
     console.error("[dispatch/loads/book]", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

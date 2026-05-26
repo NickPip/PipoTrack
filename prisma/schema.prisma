@@ -116,6 +116,8 @@ model Driver {
   unit             Unit?            @relation(fields: [unitId], references: [id])
   bids             Bid[]
   location         DriverLocation?
+
+  @@index([telegramId])
 }
 
 model DriverLocation {
@@ -168,6 +170,10 @@ model Load {
   createdAt       DateTime   @default(now())
   bids            Bid[]
   notes           LoadNote[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([brokerReference])
 }
 
 model Bid {
