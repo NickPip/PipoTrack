@@ -402,9 +402,19 @@ function QuotedPanel({
   onBook: () => void;
   onArchive: () => void;
 }) {
+  const [holding, setHolding] = useState(false);
+  const [held, setHeld] = useState(false);
+
   const accepted = load.bids.find((b) => b.status === "accepted");
   const driver = accepted?.driver;
   const unitLabel = driver?.unit ? `UNIT-${driver.unit.unitNumber}` : "—";
+
+  const handleHold = async () => {
+    setHolding(true);
+    await fetch(`/api/dispatch/loads/${load.id}/hold`, { method: "POST" });
+    setHolding(false);
+    setHeld(true);
+  };
 
   return (
     <div style={S.quotedPanel}>
@@ -414,7 +424,13 @@ function QuotedPanel({
         <div style={S.quotedPanelSub}>Bidded {timeAgo(accepted.createdAt)}</div>
       )}
       <button style={S.btnBook} onClick={onBook}>Book</button>
-      <button style={S.btnHold} onClick={() => {}}>Hold</button>
+      <button
+        style={{ ...S.btnHold, opacity: holding ? 0.7 : 1, cursor: holding ? "not-allowed" : "pointer" }}
+        onClick={handleHold}
+        disabled={holding}
+      >
+        {holding ? "Sending…" : held ? "Held ✓" : "Hold"}
+      </button>
       <button style={S.btnArchive} onClick={onArchive}>Archive</button>
     </div>
   );

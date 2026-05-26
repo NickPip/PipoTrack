@@ -3,10 +3,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccess } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
+import { getBot } from "@/bot/bot";
+
+export const runtime = "nodejs";
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await auth();
@@ -22,15 +25,21 @@ export async function POST(
       include: {
         bids: {
           where: { status: "accepted" },
-          include: { driver: { select: { id: true, unitId: true } } },
+          include: {
+            driver: { select: { id: true, unitId: true, telegramId: true } },
+          },
           take: 1,
         },
       },
     });
 
-    if (!load) return NextResponse.json({ error: "Load not found" }, { status: 404 });
+    if (!load)
+      return NextResponse.json({ error: "Load not found" }, { status: 404 });
     if (load.status !== "QUOTED") {
-      return NextResponse.json({ error: "Load must be in QUOTED status to book" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Load must be in QUOTED status to book" },
+        { status: 400 },
+      );
     }
 
     const acceptedBid = load.bids[0];
@@ -43,10 +52,30 @@ export async function POST(
       data: {
         status: "PENDING",
         dispatcherId,
-        unitId:   unitId   ?? undefined,
+        unitId: unitId ?? undefined,
         driverId: driverId ?? undefined,
       },
     });
+
+    const telegramId = acceptedBid?.driver?.telegramId;
+    if (telegramId) {
+      const loadRef =
+        load.brokerReference ?? String(load.loadNumber).padStart(4, "0");
+      try {
+        const bot = getBot();
+        await bot.api.sendMessage(
+          telegramId,
+          `✅ <b>Load #${loadRef} is Booked!</b>\n\n` +
+            `Your load has been confirmed. Please proceed to pick up.\n\n` +
+            `<b>Pick-up:</b> ${load.pickupAddress}\n` +
+            `<b>Deliver to:</b> ${load.deliveryAddress}\n\n` +
+            `Operations department will contact for further details`,
+          { parse_mode: "HTML" },
+        );
+      } catch (tgErr) {
+        console.error("[dispatch/loads/book] Telegram notify failed:", tgErr);
+      }
+    }
 
     return NextResponse.json({ load: updated });
   } catch (err) {
