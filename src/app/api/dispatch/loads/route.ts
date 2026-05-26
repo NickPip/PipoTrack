@@ -15,6 +15,11 @@ export async function GET() {
   const loads = await prisma.load.findMany({
     where: {
       status: { in: ["PENDING_DISTRIBUTION", "HAS_BIDS", "QUOTED"] },
+      // Hide PENDING_DISTRIBUTION loads that were distributed to 0 drivers (no bids created)
+      OR: [
+        { status: { not: "PENDING_DISTRIBUTION" } },
+        { bids: { some: {} } },
+      ],
     },
     orderBy: { createdAt: "desc" },
     select: {
