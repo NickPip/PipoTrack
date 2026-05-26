@@ -5,7 +5,8 @@
       "Bash(npx prisma *)",
       "Bash(mkdir -p /Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads/\\\\[id\\\\])",
       "Bash(mkdir -p /Users/pip/Downloads/pipotrack/pipotrack/src/app/api/geocode /Users/pip/Downloads/pipotrack/pipotrack/src/app/api/drivers/map /Users/pip/Downloads/pipotrack/pipotrack/src/app/\\\\\\(dashboard\\\\\\)/dispatch/map /Users/pip/Downloads/pipotrack/pipotrack/src/components/dispatch)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(git -C /Users/pip/Downloads/pipotrack/pipotrack log --oneline --all)"
     ],
     "additionalDirectories": [
       "/Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads",
