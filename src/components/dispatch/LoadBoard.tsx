@@ -527,30 +527,46 @@ function LoadCard({
 
 // ── LoadBoard ─────────────────────────────────────────────────────────────────
 
+const POLL_INTERVAL_MS = 30_000;
+
 export default function LoadBoard() {
   const [loads, setLoads] = useState<DispatchLoad[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [modalLoad, setModalLoad] = useState<DispatchLoad | null>(null);
   const [bookingLoad, setBookingLoad] = useState<DispatchLoad | null>(null);
   const [booking, setBooking] = useState(false);
 
-  const fetchLoads = useCallback(() => {
-    setLoading(true);
+  const fetchLoads = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     fetch("/api/dispatch/loads")
       .then((r) => r.json())
-      .then((d) => { setLoads(d.loads ?? []); setLoading(false); })
+      .then((d) => {
+        setLoads(d.loads ?? []);
+        setLoading(false);
+        setLastUpdated(new Date());
+      })
       .catch(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    fetch("/api/dispatch/loads")
-      .then((r) => r.json())
-      .then((d) => { setLoads(d.loads ?? []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
+    fetchLoads();
+
+    const interval = setInterval(() => fetchLoads(true), POLL_INTERVAL_MS);
+
+    const handleVisibility = () => {
+      if (!document.hidden) fetchLoads(true);
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [fetchLoads]);
 
   const handleHide = (id: string) => setHidden((prev) => new Set([...prev, id]));
 
@@ -631,7 +647,14 @@ export default function LoadBoard() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <button style={S.archiveBtn} onClick={fetchLoads}>Refresh</button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            <button style={S.archiveBtn} onClick={() => fetchLoads()}>Refresh</button>
+            {lastUpdated && (
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                Updated {timeAgo(lastUpdated.toISOString())}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
