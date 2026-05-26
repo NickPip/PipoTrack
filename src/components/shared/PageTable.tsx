@@ -441,9 +441,22 @@ export default function PageTable<T>({
           {totalPages > 1 && (
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={{ height: 28, padding: "0 10px", borderRadius: 7, border: "1px solid var(--line-strong)", background: "transparent", fontSize: 12.5, fontWeight: 500, color: safePage === 1 ? "var(--ink-4)" : "var(--ink-2)", cursor: safePage === 1 ? "default" : "pointer" }}>← Prev</button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPage(p)} style={{ height: 28, minWidth: 28, padding: "0 8px", borderRadius: 7, border: "none", fontSize: 12.5, fontWeight: 500, background: p === safePage ? "var(--ink-1)" : "transparent", color: p === safePage ? "var(--bg)" : "var(--ink-2)", cursor: "pointer" }}>{p}</button>
-              ))}
+              {(() => {
+                const pages: (number | "…")[] = [];
+                const WING = 1; // pages shown each side of current
+                for (let p = 1; p <= totalPages; p++) {
+                  if (p === 1 || p === totalPages || (p >= safePage - WING && p <= safePage + WING)) {
+                    pages.push(p);
+                  } else if (pages[pages.length - 1] !== "…") {
+                    pages.push("…");
+                  }
+                }
+                return pages.map((p, i) =>
+                  p === "…"
+                    ? <span key={`e${i}`} style={{ width: 22, textAlign: "center", fontSize: 12.5, color: "var(--ink-4)", userSelect: "none" }}>…</span>
+                    : <button key={p} onClick={() => setPage(p)} style={{ height: 28, minWidth: 28, padding: "0 8px", borderRadius: 7, border: "none", fontSize: 12.5, fontWeight: 500, background: p === safePage ? "var(--ink-1)" : "transparent", color: p === safePage ? "var(--bg)" : "var(--ink-2)", cursor: "pointer" }}>{p}</button>
+                );
+              })()}
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={{ height: 28, padding: "0 10px", borderRadius: 7, border: "1px solid var(--line-strong)", background: "transparent", fontSize: 12.5, fontWeight: 500, color: safePage === totalPages ? "var(--ink-4)" : "var(--ink-2)", cursor: safePage === totalPages ? "default" : "pointer" }}>Next →</button>
             </div>
           )}
