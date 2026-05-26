@@ -100,15 +100,16 @@ async function runConcurrent<T>(
   await Promise.all(workers);
 }
 
-// Lock so concurrent `exists` events don't pile up parallel polls
 let polling = false;
+let pollPending = false; // emails arrived while a poll was running — re-poll immediately after
 
 export async function pollInbox() {
   if (polling) {
-    console.log("[email] Poll already in progress, skipping");
+    pollPending = true; // don't drop these — re-poll when current finishes
     return;
   }
   polling = true;
+  pollPending = false;
 
   const client = createClient();
   client.on("error", (err: Error) => {
@@ -123,6 +124,7 @@ export async function pollInbox() {
     const uids = Array.isArray(result) ? result : [];
 
     if (!uids.length) {
+      console.log("[email] No new load emails");
       return;
     }
 
@@ -145,6 +147,11 @@ export async function pollInbox() {
   } finally {
     polling = false;
     try { await client.logout(); } catch { /* ignore */ }
+    // Emails arrived while we were busy — immediately pick them up
+    if (pollPending) {
+      pollPending = false;
+      pollInbox();
+    }
   }
 }
 

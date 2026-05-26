@@ -23,13 +23,19 @@ export function doorThree(
   unitDimensions: { length?: number; width?: number; height?: number } | null | undefined,
   loadDimensions: { pieces?: number; L?: number; W?: number; H?: number } | null | undefined
 ): boolean {
-  if (!unitDimensions || !loadDimensions) return false;
+  if (!unitDimensions || !loadDimensions) return true; // no dims to validate, let through
 
   const { length: vL, width: vW, height: vH } = unitDimensions;
   const { pieces, L: fL, W: fW, H: fH } = loadDimensions;
 
-  // If no freight dims or pieces specified, can't validate — fail safe
-  if (!vL || !vW || !vH || !fL || !fW || !fH || !pieces) return false;
+  // 0 pieces = no piece-count constraint from broker
+  if (!pieces) return true;
+
+  // Incomplete freight dims from broker — can't validate fit, let through
+  if (!fL || !fW || !fH) return true;
+
+  // Vehicle dims required to run the formula
+  if (!vL || !vW || !vH) return false;
 
   return maxCapacity({ L: vL, W: vW, H: vH }, { L: fL, W: fW, H: fH }) >= pieces;
 }

@@ -23,9 +23,11 @@ export interface ParsedLoad {
 }
 
 // "05/18/26 12:00 EST" or "05/18/2026 12:00 EST" → Date
+// Non-date strings like "ASAP" or "Deliver Direct" → now (load is urgent, process it)
 function parseDateTime(raw: string): Date | null {
+  if (!raw.trim()) return null;
   const match = raw.match(/(\d{2})\/(\d{2})\/(\d{2,4})\s+(\d{2}):(\d{2})/);
-  if (!match) return null;
+  if (!match) return new Date(); // ASAP / Deliver Direct / any non-standard text → now
   const [, month, day, year, hour, minute] = match;
   const fullYear = year.length === 2 ? `20${year}` : year;
   return new Date(`${fullYear}-${month}-${day}T${hour}:${minute}:00`);
