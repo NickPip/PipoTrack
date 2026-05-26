@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export async function proxy(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const token = await getToken({
@@ -29,5 +29,6 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|api/location|_next/static|_next/image|favicon.ico).*)"],
+  // Only protect page routes — all /api/* routes handle their own auth
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico).*)"],
 };
