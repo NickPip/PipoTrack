@@ -8,10 +8,14 @@ config({ path: resolve(process.cwd(), ".env") });
 // Dynamic import after env is loaded
 async function main() {
   const { getBot } = await import("./bot");
+  const { startIdleListener } = await import("../lib/email/imap");
+
   const bot = getBot();
 
-  // Delete any registered webhook so long polling works
   await bot.api.deleteWebhook({ drop_pending_updates: false });
+  console.log("⚠️  Webhook deleted — re-register it on Vercel after stopping local dev");
+
+  startIdleListener().catch((err) => console.error("[email] Fatal:", err));
 
   await bot.start({
     onStart: (info) => {

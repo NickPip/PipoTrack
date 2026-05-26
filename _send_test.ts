@@ -36,7 +36,7 @@ async function main() {
 
   console.log(`Created test load #${load.loadNumber} (${load.id})`);
 
-  const { sendLoadToDriver } = await import("./src/bot/sendLoad");
+  const { sendLoadToDriverById: sendLoadToDriver } = await import("./src/bot/sendLoad");
   await sendLoadToDriver(load.id, driver.id);
   console.log(`Sent to ${driver.name} (TG: ${driver.telegramId})`);
   console.log(`\nTo delete the test load run:\nnpx tsx -e "import {PrismaClient} from './src/generated/prisma/client';import {PrismaPg} from '@prisma/adapter-pg';import 'dotenv/config';const p=new PrismaClient({adapter:new PrismaPg({connectionString:process.env.DATABASE_URL})} as never);p.load.delete({where:{id:'${load.id}'}}).then(()=>{console.log('deleted');p.\$disconnect();});"`);

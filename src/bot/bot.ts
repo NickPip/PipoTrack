@@ -1,5 +1,6 @@
 import { Bot, Context, InlineKeyboard, session, SessionFlavor } from "grammy";
 import { prisma } from "@/lib/prisma";
+import { invalidateDriverCache } from "./sendLoad";
 
 interface SessionData {
   action: "awaiting_bid" | null;
@@ -157,6 +158,7 @@ export function getBot(): Bot<BotContext> {
       where: { id: driver.id },
       data: { isAvailable: false },
     });
+    invalidateDriverCache();
 
     await ctx.answerCallbackQuery({ text: "✓ Stopped" });
     await ctx.reply(

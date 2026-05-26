@@ -10,6 +10,7 @@ export interface ParsedLoad {
   pickupZip: string | null;
   pickupDate: Date | null;
   deliveryAddress: string | null;
+  deliveryZip: string | null;
   deliveryDate: Date | null;
   miles: number | null;
   rate: number | null;
@@ -21,12 +22,13 @@ export interface ParsedLoad {
   dimensionH: number | null;
 }
 
-// "05/18/26 12:00 EST" → Date
+// "05/18/26 12:00 EST" or "05/18/2026 12:00 EST" → Date
 function parseDateTime(raw: string): Date | null {
-  const match = raw.match(/(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
+  const match = raw.match(/(\d{2})\/(\d{2})\/(\d{2,4})\s+(\d{2}):(\d{2})/);
   if (!match) return null;
   const [, month, day, year, hour, minute] = match;
-  return new Date(`20${year}-${month}-${day}T${hour}:${minute}:00`);
+  const fullYear = year.length === 2 ? `20${year}` : year;
+  return new Date(`${fullYear}-${month}-${day}T${hour}:${minute}:00`);
 }
 
 // "Forest Park, GA 30297" → "30297"
@@ -60,7 +62,34 @@ function parseDimensions(raw: string): { L: number; W: number; H: number } | nul
   return { L: parseFloat(match[1]), W: parseFloat(match[2]), H: parseFloat(match[3]) };
 }
 
-export function parseSylectusEmail(html: string): ParsedLoad {
+function parsePickupDeliveryFromText(text: string): {
+  pickupAddress: string | null;
+  pickupDate: Date | null;
+  deliveryAddress: string | null;
+  deliveryDate: Date | null;
+} {
+  const lines = text.split(/\n/).map((l) => l.replace(/\*/g, "").trim()).filter(Boolean);
+
+  let pickupAddress: string | null = null;
+  let pickupDate: Date | null = null;
+  let deliveryAddress: string | null = null;
+  let deliveryDate: Date | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^Pick-?Up$/i.test(lines[i])) {
+      pickupAddress = lines[i + 1] ?? null;
+      pickupDate    = parseDateTime(lines[i + 2] ?? "") ?? parseDateTime(lines[i + 3] ?? "");
+    }
+    if (/^Delivery$/i.test(lines[i])) {
+      deliveryAddress = lines[i + 1] ?? null;
+      deliveryDate    = parseDateTime(lines[i + 2] ?? "") ?? parseDateTime(lines[i + 3] ?? "");
+    }
+  }
+
+  return { pickupAddress, pickupDate, deliveryAddress, deliveryDate };
+}
+
+export function parseSylectusEmail(html: string, text?: string): ParsedLoad {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const $: any = cheerio.load(html);
 
@@ -117,6 +146,15 @@ export function parseSylectusEmail(html: string): ParsedLoad {
     }
   });
 
+  // ── Text fallback for pickup/delivery if HTML parsing missed them ────────────
+  if ((!pickupAddress || !pickupDate || !deliveryAddress || !deliveryDate) && text) {
+    const fb = parsePickupDeliveryFromText(text);
+    pickupAddress   = pickupAddress   ?? fb.pickupAddress;
+    pickupDate      = pickupDate      ?? fb.pickupDate;
+    deliveryAddress = deliveryAddress ?? fb.deliveryAddress;
+    deliveryDate    = deliveryDate    ?? fb.deliveryDate;
+  }
+
   // ── Labeled fields ──────────────────────────────────────────────────────────
   const dims = parseDimensions(labelValue("Dimensions:"));
 
@@ -127,9 +165,10 @@ export function parseSylectusEmail(html: string): ParsedLoad {
     brokerPhone:     labelValue("Broker Phone:")   || null,
     brokerEmail:     labelValue("Email:")          || null,
     pickupAddress,
-    pickupZip:       pickupAddress ? extractZip(pickupAddress) : null,
+    pickupZip:       pickupAddress   ? extractZip(pickupAddress)   : null,
     pickupDate,
     deliveryAddress,
+    deliveryZip:     deliveryAddress ? extractZip(deliveryAddress) : null,
     deliveryDate,
     miles,
     rate:            parseDollar(labelValue("Posted Amount:")),

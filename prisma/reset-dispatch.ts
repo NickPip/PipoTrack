@@ -67,7 +67,7 @@ async function main() {
   console.log(`  Rate      : $${load.rate}`);
   console.log(`\n📤 Sending to Telegram...`);
 
-  const { sendLoadToDriver } = await import("../src/bot/sendLoad");
+  const { sendLoadToDriverById: sendLoadToDriver } = await import("../src/bot/sendLoad");
   await sendLoadToDriver(load.id, driver.id);
 
   console.log(`✅ Sent to @${driver.name} — check Telegram!`);

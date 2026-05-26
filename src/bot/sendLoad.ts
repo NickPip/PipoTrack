@@ -44,15 +44,18 @@ function milesOut(driverZip: string | null, pickupZip: string | null): number | 
 }
 
 
-export async function sendLoadToDriver(loadId: string, driverId: string): Promise<void> {
+type LoadRecord = NonNullable<Awaited<ReturnType<typeof prisma.load.findUnique>>>;
+type DriverWithUnit = Awaited<ReturnType<typeof prisma.driver.findMany>>[number] & {
+  unit: { dimensions: unknown } | null;
+};
+
+// Accepts pre-fetched load + driver to avoid redundant DB queries when called in bulk
+async function sendLoadToDriver(
+  load: LoadRecord,
+  driver: DriverWithUnit
+): Promise<void> {
+  if (!driver.telegramId) return;
   const bot = getBot();
-
-  const [load, driver] = await Promise.all([
-    prisma.load.findUnique({ where: { id: loadId } }),
-    prisma.driver.findUnique({ where: { id: driverId }, include: { unit: true } }),
-  ]);
-
-  if (!load || !driver?.telegramId) return;
 
   const dim = load.dimensions as {
     pieces?: number;
@@ -63,7 +66,7 @@ export async function sendLoadToDriver(loadId: string, driverId: string): Promis
 
   const out = milesOut(driver.currentZip, load.pickupZip ?? null);
   const driverLabel = driver.unit
-    ? `${driver.unit.unitNumber}|${driver.name}`
+    ? `${(driver.unit as { unitNumber?: string }).unitNumber ?? ""}|${driver.name}`
     : driver.name;
   const loadRef = load.brokerReference ?? String(load.loadNumber).padStart(4, "0");
 
@@ -109,7 +112,6 @@ export async function sendLoadToDriver(loadId: string, driverId: string): Promis
     reply_markup: keyboard,
   });
 
-  // Record that this driver was notified — updated to "pending"/"skipped" when they respond
   await prisma.bid.upsert({
     where: { loadId_driverId: { loadId: load.id, driverId: driver.id } },
     create: { loadId: load.id, driverId: driver.id, amount: 0, status: "sent" },
@@ -117,14 +119,37 @@ export async function sendLoadToDriver(loadId: string, driverId: string): Promis
   });
 }
 
+type CachedDrivers = Awaited<ReturnType<typeof prisma.driver.findMany<{
+  where: { telegramId: { not: null }; isAvailable: true; unitId: { not: null } };
+  include: { unit: { select: { dimensions: true; unitNumber: true } } };
+}>>>;
+
+let driverCache: CachedDrivers | null = null;
+let driverCacheAt = 0;
+const DRIVER_CACHE_TTL = 30_000; // 30 seconds — stale drivers just miss one batch
+
+async function getAvailableDrivers(): Promise<CachedDrivers> {
+  if (driverCache && Date.now() - driverCacheAt < DRIVER_CACHE_TTL) {
+    return driverCache;
+  }
+  driverCache = await prisma.driver.findMany({
+    where: { telegramId: { not: null }, isAvailable: true, unitId: { not: null } },
+    include: { unit: { select: { dimensions: true, unitNumber: true } } },
+  });
+  driverCacheAt = Date.now();
+  return driverCache;
+}
+
+// Call this when a driver's availability/zip/unit changes so the cache doesn't serve stale data
+export function invalidateDriverCache() {
+  driverCache = null;
+}
+
 export async function distributeLoad(loadId: string): Promise<number> {
   const load = await prisma.load.findUnique({ where: { id: loadId } });
   if (!load || !load.vehicleRequired) return 0;
 
-  const drivers = await prisma.driver.findMany({
-    where: { telegramId: { not: null }, isAvailable: true, unitId: { not: null } },
-    include: { unit: { select: { dimensions: true } } },
-  });
+  const drivers = await getAvailableDrivers();
 
   const loadDims = load.dimensions as { pieces?: number; L?: number; W?: number; H?: number } | null;
 
@@ -136,15 +161,29 @@ export async function distributeLoad(loadId: string): Promise<number> {
     return true;
   });
 
-  let sent = 0;
-  for (const driver of matching) {
-    try {
-      await sendLoadToDriver(loadId, driver.id);
-      sent++;
-    } catch (err) {
-      console.error(`[bot] send to driver ${driver.id} failed:`, err);
-    }
+  // Send to all matching drivers in parallel — Telegram allows ~30 msg/sec globally
+  const results = await Promise.allSettled(
+    matching.map((driver) => sendLoadToDriver(load, driver as DriverWithUnit))
+  );
+
+  const sent = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected");
+  for (const f of failed) {
+    console.error("[bot] Failed to send load to driver:", (f as PromiseRejectedResult).reason);
   }
 
   return sent;
+}
+
+// Public helper for debug/seed scripts — fetches by ID then delegates
+export async function sendLoadToDriverById(loadId: string, driverId: string): Promise<void> {
+  const [load, driver] = await Promise.all([
+    prisma.load.findUnique({ where: { id: loadId } }),
+    prisma.driver.findUnique({
+      where: { id: driverId },
+      include: { unit: { select: { dimensions: true, unitNumber: true } } },
+    }),
+  ]);
+  if (!load || !driver) return;
+  await sendLoadToDriver(load, driver as DriverWithUnit);
 }

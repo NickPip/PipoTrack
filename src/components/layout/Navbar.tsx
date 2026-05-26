@@ -21,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
       { title: "Bot", description: "Automated driver bidding via Telegram", href: "/dispatch/bot" },
       { title: "Live Map", description: "Real-time driver locations", href: "/dispatch/map" },
       { title: "Availabilities", description: "Driver schedules & hours", href: "/dispatch/availabilities" },
+      { title: "Email Parser", description: "Parsed broker emails & inbox check", href: "/dispatch/email" },
     ],
   },
   {
