@@ -16,8 +16,9 @@ function timeAgo(iso: string): string {
 }
 
 function bidRateLabel(bid: Bid): { text: string; color: string } {
-  if (bid.status === "skipped") return { text: "Skipped", color: "#6b7280" };
-  if (bid.amount > 0) return { text: `$${bid.amount}`, color: "#2563eb" };
+  if (bid.status === "sent")    return { text: "Waiting…", color: "#f59e0b" };
+  if (bid.status === "skipped") return { text: "Skipped",  color: "#6b7280" };
+  if (bid.amount > 0)           return { text: `$${bid.amount}`, color: "#2563eb" };
   return { text: "N/A", color: "#9ca3af" };
 }
 

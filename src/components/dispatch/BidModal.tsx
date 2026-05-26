@@ -86,8 +86,9 @@ function fmtDate(iso: string): string {
 }
 
 function bidRateLabel(bid: Bid): string {
+  if (bid.status === "sent")    return "Waiting…";
   if (bid.status === "skipped") return "Skipped";
-  if (bid.amount > 0) return `$${bid.amount}`;
+  if (bid.amount > 0)           return `$${bid.amount}`;
   return "N/A";
 }
 

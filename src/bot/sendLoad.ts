@@ -1,6 +1,9 @@
 import { InlineKeyboard } from "grammy";
 import { getBot } from "./bot";
 import { prisma } from "@/lib/prisma";
+import { doorOne } from "@/lib/doors/door-one";
+import { doorTwo } from "@/lib/doors/door-two";
+import { doorThree } from "@/lib/doors/door-three";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const zipcodes = require("zipcodes") as {
@@ -40,16 +43,6 @@ function milesOut(driverZip: string | null, pickupZip: string | null): number | 
   return Math.round(meters / 1609.34);
 }
 
-// Door One: vehicle type matching (Sprinter = Cargo Van, others exact)
-function doorOne(loadVehicle: string, driverVehicle: string | null | undefined): boolean {
-  if (!driverVehicle) return false;
-  const norm = (v: string) => v.toLowerCase().trim();
-  const lv = norm(loadVehicle);
-  const dv = norm(driverVehicle);
-  const sprinterTypes = ["sprinter", "cargo van"];
-  if (sprinterTypes.includes(lv) && sprinterTypes.includes(dv)) return true;
-  return lv === dv;
-}
 
 export async function sendLoadToDriver(loadId: string, driverId: string): Promise<void> {
   const bot = getBot();
@@ -115,6 +108,13 @@ export async function sendLoadToDriver(loadId: string, driverId: string): Promis
     parse_mode: "HTML",
     reply_markup: keyboard,
   });
+
+  // Record that this driver was notified — updated to "pending"/"skipped" when they respond
+  await prisma.bid.upsert({
+    where: { loadId_driverId: { loadId: load.id, driverId: driver.id } },
+    create: { loadId: load.id, driverId: driver.id, amount: 0, status: "sent" },
+    update: {},
+  });
 }
 
 export async function distributeLoad(loadId: string): Promise<number> {
@@ -122,10 +122,19 @@ export async function distributeLoad(loadId: string): Promise<number> {
   if (!load || !load.vehicleRequired) return 0;
 
   const drivers = await prisma.driver.findMany({
-    where: { telegramId: { not: null }, isAvailable: true },
+    where: { telegramId: { not: null }, isAvailable: true, unitId: { not: null } },
+    include: { unit: { select: { dimensions: true } } },
   });
 
-  const matching = drivers.filter((d) => doorOne(load.vehicleRequired!, d.vehicleType));
+  const loadDims = load.dimensions as { pieces?: number; L?: number; W?: number; H?: number } | null;
+
+  const matching = drivers.filter((d) => {
+    if (!doorOne(load.vehicleRequired!, d.vehicleType)) return false;
+    if (!doorTwo(d.currentZip, d.searchRadius, load.pickupZip)) return false;
+    const unitDims = d.unit?.dimensions as { length?: number; width?: number; height?: number } | null;
+    if (!doorThree(unitDims, loadDims)) return false;
+    return true;
+  });
 
   let sent = 0;
   for (const driver of matching) {

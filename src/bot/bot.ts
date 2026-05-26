@@ -84,7 +84,7 @@ export function getBot(): Bot<BotContext> {
     }
 
     const existing = await prisma.bid.findFirst({ where: { loadId, driverId: driver.id } });
-    if (existing) {
+    if (existing && existing.status !== "sent") {
       await ctx.answerCallbackQuery({ text: "You already responded to this load." });
       return;
     }
@@ -117,13 +117,15 @@ export function getBot(): Bot<BotContext> {
     }
 
     const existing = await prisma.bid.findFirst({ where: { loadId, driverId: driver.id } });
-    if (existing) {
+    if (existing && existing.status !== "sent") {
       await ctx.answerCallbackQuery({ text: "Already responded." });
       return;
     }
 
-    await prisma.bid.create({
-      data: { loadId, driverId: driver.id, amount: 0, status: "skipped" },
+    await prisma.bid.upsert({
+      where: { loadId_driverId: { loadId, driverId: driver.id } },
+      create: { loadId, driverId: driver.id, amount: 0, status: "skipped" },
+      update: { status: "skipped" },
     });
 
     await ctx.answerCallbackQuery({ text: "Load skipped ✓" });
@@ -192,15 +194,17 @@ export function getBot(): Bot<BotContext> {
     }
 
     const existing = await prisma.bid.findFirst({ where: { loadId, driverId: driver.id } });
-    if (existing) {
+    if (existing && existing.status !== "sent") {
       ctx.session.action = null;
       ctx.session.loadId = null;
       await ctx.reply("⚠️ You already submitted a bid for this load.");
       return;
     }
 
-    await prisma.bid.create({
-      data: { loadId, driverId: driver.id, amount, status: "pending" },
+    await prisma.bid.upsert({
+      where: { loadId_driverId: { loadId, driverId: driver.id } },
+      create: { loadId, driverId: driver.id, amount, status: "pending" },
+      update: { amount, status: "pending" },
     });
 
     if (load.status === "PENDING_DISTRIBUTION") {

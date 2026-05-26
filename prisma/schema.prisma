@@ -179,6 +179,8 @@ model Bid {
   createdAt DateTime @default(now())
   load      Load     @relation(fields: [loadId], references: [id])
   driver    Driver   @relation(fields: [driverId], references: [id])
+
+  @@unique([loadId, driverId])
 }
 
 model LoadNote {
