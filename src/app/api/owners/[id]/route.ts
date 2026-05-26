@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/owners/[id]"
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
 
   const owner = await prisma.owner.update({ where: { id }, data: parsed.data });

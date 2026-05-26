@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 
@@ -52,16 +53,32 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
 
   const { password, ...data } = parsed.data;
   const hashed = await hash(password, 12);
 
-  const user = await prisma.user.create({
-    data: { ...data, password: hashed },
-    select: { id: true, name: true, surname: true, email: true, role: true },
-  });
-
-  return NextResponse.json(user, { status: 201 });
+  try {
+    const user = await prisma.user.create({
+      data: { ...data, password: hashed },
+      select: { id: true, name: true, surname: true, email: true, role: true },
+    });
+    return NextResponse.json(user, { status: 201 });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const conflict = await prisma.user.findFirst({
+        where: { OR: [{ email: data.email }, { idNumber: data.idNumber }] },
+        select: { email: true, idNumber: true },
+      });
+      const message =
+        conflict?.email === data.email
+          ? `Email "${data.email}" is already in use.`
+          : conflict?.idNumber === data.idNumber
+            ? `ID number "${data.idNumber}" is already in use.`
+            : "A user with these details already exists.";
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+    throw err;
+  }
 }

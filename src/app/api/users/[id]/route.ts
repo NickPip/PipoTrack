@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 
@@ -27,20 +28,43 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/users/[id]">
   const body = await req.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
 
   const { password, ...data } = parsed.data;
   const updateData: Record<string, unknown> = { ...data };
   if (password) updateData.password = await hash(password, 12);
 
-  const user = await prisma.user.update({
-    where: { id },
-    data: updateData,
-    select: { id: true, name: true, surname: true, email: true, role: true },
-  });
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: updateData,
+      select: { id: true, name: true, surname: true, email: true, role: true },
+    });
+    return NextResponse.json(user);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const orFilters: Prisma.UserWhereInput[] = [];
+      if (data.email)    orFilters.push({ email: data.email });
+      if (data.idNumber) orFilters.push({ idNumber: data.idNumber });
 
-  return NextResponse.json(user);
+      const conflict = orFilters.length
+        ? await prisma.user.findFirst({
+            where: { AND: [{ id: { not: id } }, { OR: orFilters }] },
+            select: { email: true, idNumber: true },
+          })
+        : null;
+
+      const message =
+        data.email && conflict?.email === data.email
+          ? `Email "${data.email}" is already in use.`
+          : data.idNumber && conflict?.idNumber === data.idNumber
+            ? `ID number "${data.idNumber}" is already in use.`
+            : "Another user with these details already exists.";
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+    throw err;
+  }
 }
 
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/users/[id]">) {
