@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
+import { cached } from "@/lib/cache";
 import { z } from "zod";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -11,39 +12,36 @@ const zipcodes = require("zipcodes") as {
   lookupByCoords: (lat: number, lon: number) => { zip: string; city: string; state: string } | null;
 };
 
-// ── Nominatim reverse-geocode cache (5-minute TTL) ────────────────────────────
-const nominatimCache = new Map<string, { address: string; expiresAt: number }>();
-
+// Reverse-geocode via Nominatim. Cached in Redis (or in-memory) by rounded
+// coords so the OSM Usage Policy (≤1 req/sec) isn't violated when several
+// dispatchers refresh at once. 6h TTL — street addresses don't change.
 async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
-  const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-  const cached = nominatimCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.address;
-
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
-      { headers: { "User-Agent": "PipoTrack/1.0 (logistics-platform)" }, signal: AbortSignal.timeout(3000) }
-    );
-    if (!res.ok) return null;
-    const data = await res.json() as {
-      address?: {
-        house_number?: string; road?: string; city?: string; town?: string;
-        village?: string; suburb?: string; state?: string; postcode?: string;
+  const key = `nominatim:${lat.toFixed(4)},${lon.toFixed(4)}`;
+  return cached(key, 6 * 3600, async () => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+        { headers: { "User-Agent": "PipoTrack/1.0 (logistics-platform)" }, signal: AbortSignal.timeout(3000) }
+      );
+      if (!res.ok) return null;
+      const data = await res.json() as {
+        address?: {
+          house_number?: string; road?: string; city?: string; town?: string;
+          village?: string; suburb?: string; state?: string; postcode?: string;
+        };
       };
-    };
-    const a = data.address;
-    if (!a) return null;
+      const a = data.address;
+      if (!a) return null;
 
-    const street = [a.house_number, a.road].filter(Boolean).join(" ");
-    const locality = a.city ?? a.town ?? a.village ?? a.suburb ?? "";
-    const parts = [street, locality, a.state].filter(Boolean);
-    const address = parts.join(", ") + (a.postcode ? ` ${a.postcode}` : "");
-
-    nominatimCache.set(key, { address, expiresAt: Date.now() + 5 * 60 * 1000 });
-    return address || null;
-  } catch {
-    return null;
-  }
+      const street = [a.house_number, a.road].filter(Boolean).join(" ");
+      const locality = a.city ?? a.town ?? a.village ?? a.suburb ?? "";
+      const parts = [street, locality, a.state].filter(Boolean);
+      const address = parts.join(", ") + (a.postcode ? ` ${a.postcode}` : "");
+      return address || null;
+    } catch {
+      return null;
+    }
+  });
 }
 
 const patchSchema = z.object({
