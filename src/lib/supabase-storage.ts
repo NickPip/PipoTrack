@@ -11,7 +11,14 @@ function getClient() {
   return createClient(url, key);
 }
 
-const SIGNED_URL_TTL = 10 * 365 * 24 * 3600; // ~10 years
+// Signed URL lifetime for new uploads. Defaults to 7 days — long enough that a
+// stored reference works for normal review cycles but short enough that a leaked
+// URL doesn't grant indefinite access. Existing URLs already in the DB keep
+// whatever TTL they were originally signed with (Supabase doesn't honor this
+// number retroactively). Override per-deploy with SUPABASE_SIGNED_URL_TTL_SEC.
+const DEFAULT_SIGNED_URL_TTL = 7 * 24 * 3600;
+const SIGNED_URL_TTL =
+  parseInt(process.env.SUPABASE_SIGNED_URL_TTL_SEC ?? "", 10) || DEFAULT_SIGNED_URL_TTL;
 
 export async function uploadFile(
   bucket: string,
