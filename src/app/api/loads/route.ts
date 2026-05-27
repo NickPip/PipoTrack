@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccess, canMutate } from "@/lib/rbac";
 import { Role, LoadStatus } from "@/generated/prisma/enums";
 import { drivingMiles } from "@/lib/mapbox";
+import { parseDateTime } from "@/lib/dates";
 import { z } from "zod";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const zipcodes = require("zipcodes") as {
@@ -28,18 +29,6 @@ const ACTIVE_STATUSES = new Set([
   "LOADED_AND_DELIVERING",
   "ONSITE_FOR_DELIVERY",
 ]);
-
-function parseDateTime(value: string): Date {
-  // Accept ISO string or "MM/DD HH:mm"
-  if (value.includes("T") || value.includes("-")) return new Date(value);
-  const match = value.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
-  if (match) {
-    const [, month, day, hour, minute] = match;
-    const year = new Date().getFullYear();
-    return new Date(year, parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
-  }
-  return new Date(value);
-}
 
 const schema = z.object({
   broker: z.string().min(1, "Required"),

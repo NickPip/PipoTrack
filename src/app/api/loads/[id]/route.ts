@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canMutate } from "@/lib/rbac";
 import { Role, LoadStatus, FinStatus } from "@/generated/prisma/enums";
+import { parseDateTime } from "@/lib/dates";
 import { z } from "zod";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -14,17 +15,6 @@ const STATUS_LABELS: Record<string, string> = {
   DELIVERED: "Delivered",
   CANCELED: "Canceled",
 };
-
-function parseDateTime(value: string): Date {
-  if (value.includes("T") || value.includes("-")) return new Date(value);
-  const match = value.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
-  if (match) {
-    const [, month, day, hour, minute] = match;
-    const year = new Date().getFullYear();
-    return new Date(year, parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
-  }
-  return new Date(value);
-}
 
 const schema = z.object({
   broker: z.string().min(1).optional(),
