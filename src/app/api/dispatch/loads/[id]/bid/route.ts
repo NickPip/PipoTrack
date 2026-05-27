@@ -33,27 +33,29 @@ export async function POST(
 
     const { bidId, driverId, driverRate, rate, notes } = parsed.data;
 
-    // Update load: set rates, assign driver, move to QUOTED
-    const load = await prisma.load.update({
-      where: { id: loadId },
-      data: {
-        status:       "QUOTED",
-        rate,
-        driverRate,
-        driverId,
-        deliveryNotes: notes || undefined,
-      },
-    });
-
-    // Mark the winning bid as accepted, all others as declined
-    await prisma.bid.updateMany({
-      where: { loadId, id: { not: bidId } },
-      data:  { status: "declined" },
-    });
-    await prisma.bid.update({
-      where: { id: bidId },
-      data:  { status: "accepted", amount: driverRate },
-    });
+    // All three writes go in one transaction. Previously they were sequential
+    // and a failure between them (e.g. the bid.update throwing after the
+    // load.update succeeded) would leave the load QUOTED with no accepted bid.
+    const [load] = await prisma.$transaction([
+      prisma.load.update({
+        where: { id: loadId },
+        data: {
+          status:       "QUOTED",
+          rate,
+          driverRate,
+          driverId,
+          deliveryNotes: notes || undefined,
+        },
+      }),
+      prisma.bid.updateMany({
+        where: { loadId, id: { not: bidId } },
+        data:  { status: "declined" },
+      }),
+      prisma.bid.update({
+        where: { id: bidId },
+        data:  { status: "accepted", amount: driverRate },
+      }),
+    ]);
 
     return NextResponse.json({ load });
   } catch (err) {
