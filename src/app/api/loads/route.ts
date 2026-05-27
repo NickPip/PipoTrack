@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccess, canMutate } from "@/lib/rbac";
 import { Role, LoadStatus } from "@/generated/prisma/enums";
+import { drivingMiles } from "@/lib/mapbox";
 import { z } from "zod";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const zipcodes = require("zipcodes") as {
@@ -18,27 +19,15 @@ function zipToCoords(zip: string): { latitude: number; longitude: number } | nul
   return zipcodes.lookup(zip);
 }
 
-function metersToMiles(m: number) {
-  return Math.round(m / 1609.34);
-}
-
-async function drivingMiles(
-  from: { latitude: number; longitude: number },
-  to:   { latitude: number; longitude: number }
-): Promise<number | null> {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (!token) return null;
-  try {
-    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${from.longitude},${from.latitude};${to.longitude},${to.latitude}?access_token=${token}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json() as { routes?: { distance: number }[] };
-    const meters = data.routes?.[0]?.distance;
-    return meters != null ? metersToMiles(meters) : null;
-  } catch {
-    return null;
-  }
-}
+// Only loads in these statuses are actively being driven — we only spend
+// Mapbox quota on those. Delivered/Canceled/Quoted etc. don't need a
+// minute-by-minute distance estimate.
+const ACTIVE_STATUSES = new Set([
+  "DISPATCHED_TO_PICKUP",
+  "ONSITE_FOR_PICKUP",
+  "LOADED_AND_DELIVERING",
+  "ONSITE_FOR_DELIVERY",
+]);
 
 function parseDateTime(value: string): Date {
   // Accept ISO string or "MM/DD HH:mm"
@@ -146,12 +135,19 @@ export async function GET() {
 
   const ONLINE_MS = 30 * 60 * 1000;
 
-  // Build all Mapbox distance queries in parallel
+  // Build all Mapbox distance queries in parallel — but only for loads that
+  // are actively being driven. Skipping non-active statuses cuts the Mapbox
+  // call count dramatically (a typical list is mostly delivered/canceled).
+  // drivingMiles() also caches its own results in Redis so back-to-back
+  // requests for the same driver position are free.
   type DistResult = { coveredMiles: number | null; remainingMiles: number | null; isMoving: boolean | null };
+  const NULL_DIST: DistResult = { coveredMiles: null, remainingMiles: null, isMoving: null };
+
   const distanceJobs = loads.map(async (l): Promise<DistResult> => {
+    if (!ACTIVE_STATUSES.has(l.status)) return NULL_DIST;
     const loc = l.driverId ? locationMap[l.driverId] : null;
     if (!loc || Date.now() - new Date(loc.updatedAt).getTime() >= ONLINE_MS) {
-      return { coveredMiles: null, remainingMiles: null, isMoving: null };
+      return NULL_DIST;
     }
 
     const driverPos  = { latitude: loc.lat, longitude: loc.lon };
