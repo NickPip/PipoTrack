@@ -4,7 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { canAccess, canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
+import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
+
+const UNIT_FIELD_LABELS = {
+  unitNumber: "Unit number",
+  vin: "VIN",
+  plateNumber: "Plate number",
+};
 
 const VEHICLE_TYPES = ["Sprinter Van", "Cargo Van", "Small Straight", "Large Straight"] as const;
 const EQUIPMENT_OPTIONS = ["PPE", "E-TRACK", "DOLLY", "BLANKETS", "STRAPS"] as const;
@@ -90,6 +97,7 @@ export async function POST(req: NextRequest) {
 
   const { driverIds, ...data } = parsed.data;
 
+  try {
   // Create the unit and reassign drivers atomically. Without a transaction,
   // a crash between the two writes would leave a unit with no drivers (or
   // drivers reassigned to a unit that no longer exists if the create rolled
@@ -124,4 +132,13 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json(unit, { status: 201 });
+  } catch (err) {
+    const res = handlePrismaError(err, UNIT_FIELD_LABELS, {
+      unitNumber: data.unitNumber,
+      vin: data.vin,
+      plateNumber: data.plateNumber,
+    });
+    if (res) return res;
+    throw err;
+  }
 }

@@ -5,6 +5,7 @@ import { Dialog as DP } from "radix-ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { extractErrorMessage } from "@/lib/api-errors";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      setApiError(json.error ?? "Something went wrong. Please try again.");
+      setApiError(extractErrorMessage(json.error) ?? "Something went wrong. Please try again.");
       return;
     }
 

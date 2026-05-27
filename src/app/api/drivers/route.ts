@@ -3,7 +3,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccess, canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
+import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
+
+const DRIVER_FIELD_LABELS = {
+  dlNumber: "Driver license number",
+  telegramId: "Telegram ID",
+  traccarDeviceId: "Traccar device ID",
+};
 
 const schema = z.object({
   name: z.string().min(1),
@@ -61,8 +68,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(driver, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Database error";
+    const res = handlePrismaError(err, DRIVER_FIELD_LABELS, {
+      dlNumber: parsed.data.dlNumber,
+      telegramId: parsed.data.telegramId,
+      traccarDeviceId: parsed.data.traccarDeviceId,
+    });
+    if (res) return res;
     console.error("[POST /api/drivers]", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
   }
 }

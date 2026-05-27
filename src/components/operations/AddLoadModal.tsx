@@ -8,6 +8,7 @@ import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { FileInput } from "@/components/shared/FileInput";
 import { uploadFile } from "@/lib/upload-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -284,7 +285,7 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      setApiError(json.error ?? "Something went wrong. Please try again.");
+      setApiError(extractErrorMessage(json.error) ?? "Something went wrong. Please try again.");
       return;
     }
 

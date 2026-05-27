@@ -3,7 +3,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccess, canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
+import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
+
+const OWNER_FIELD_LABELS = {
+  email: "Email",
+  ssnFein: "SSN/FEIN",
+};
 
 const schema = z.object({
   name: z.string().min(1),
@@ -51,6 +57,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
 
-  const owner = await prisma.owner.create({ data: parsed.data });
-  return NextResponse.json(owner, { status: 201 });
+  try {
+    const owner = await prisma.owner.create({ data: parsed.data });
+    return NextResponse.json(owner, { status: 201 });
+  } catch (err) {
+    const res = handlePrismaError(err, OWNER_FIELD_LABELS, {
+      email: parsed.data.email,
+      ssnFein: parsed.data.ssnFein,
+    });
+    if (res) return res;
+    throw err;
+  }
 }

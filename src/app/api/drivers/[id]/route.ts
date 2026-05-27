@@ -3,7 +3,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
+import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
+
+const DRIVER_FIELD_LABELS = {
+  dlNumber: "Driver license number",
+  telegramId: "Telegram ID",
+  traccarDeviceId: "Traccar device ID",
+};
 
 const schema = z.object({
   name: z.string().min(1),
@@ -40,12 +47,21 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/drivers/[id]
   }
 
   const { unitId, ...rest } = parsed.data;
-  const driver = await prisma.driver.update({
-    where: { id },
-    data: { ...rest, unitId: unitId ?? null },
-  });
 
-  return NextResponse.json(driver);
+  try {
+    const driver = await prisma.driver.update({
+      where: { id },
+      data: { ...rest, unitId: unitId ?? null },
+    });
+    return NextResponse.json(driver);
+  } catch (err) {
+    const res = handlePrismaError(err, DRIVER_FIELD_LABELS, {
+      dlNumber: parsed.data.dlNumber,
+      telegramId: parsed.data.telegramId,
+    });
+    if (res) return res;
+    throw err;
+  }
 }
 
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/drivers/[id]">) {

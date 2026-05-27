@@ -4,7 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
+import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
+
+const UNIT_FIELD_LABELS = {
+  unitNumber: "Unit number",
+  vin: "VIN",
+  plateNumber: "Plate number",
+};
 
 const VEHICLE_TYPES = ["Sprinter Van", "Cargo Van", "Small Straight", "Large Straight"] as const;
 const EQUIPMENT_OPTIONS = ["PPE", "E-TRACK", "DOLLY", "BLANKETS", "STRAPS"] as const;
@@ -49,6 +56,7 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/units/[id]">
 
   const { driverIds, ...data } = parsed.data;
 
+  try {
   // Unit update + driver reassignment as one transaction. Previously a crash
   // between the clear step and the reassign step would leave all drivers
   // unassigned from this unit with no recovery path.
@@ -86,6 +94,15 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/units/[id]">
   });
 
   return NextResponse.json(unit);
+  } catch (err) {
+    const res = handlePrismaError(err, UNIT_FIELD_LABELS, {
+      unitNumber: data.unitNumber,
+      vin: data.vin,
+      plateNumber: data.plateNumber,
+    });
+    if (res) return res;
+    throw err;
+  }
 }
 
 export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/units/[id]">) {

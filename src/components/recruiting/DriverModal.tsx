@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { FileInput } from "@/components/shared/FileInput";
 import { uploadFile } from "@/lib/upload-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -189,7 +190,7 @@ export default function DriverModal({ open, onClose, onSaved, driver }: DriverMo
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      setApiError(json.error ?? "Something went wrong. Please try again.");
+      setApiError(extractErrorMessage(json.error) ?? "Something went wrong. Please try again.");
       return;
     }
 
