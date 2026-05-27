@@ -85,33 +85,39 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (d.bolUrls !== undefined) update.bolUrls = d.bolUrls;
   if (d.podUrl !== undefined) update.podUrl = d.podUrl;
 
-  // Detect status change before updating
-  let prevStatus: string | null = null;
-  if (d.status !== undefined) {
-    const current = await prisma.load.findUnique({ where: { id }, select: { status: true } });
-    if (current && current.status !== d.status) {
-      prevStatus = current.status;
+  // Read previous status, update, and (if status changed) write the audit
+  // note as one transaction. Without this, the update could succeed and the
+  // note write fail, leaving the load history inaccurate.
+  const userName = `${session?.user?.name ?? "Unknown"}`;
+  const userId = (session?.user as { id?: string } | undefined)?.id ?? "";
+
+  const load = await prisma.$transaction(async (tx) => {
+    let prevStatus: string | null = null;
+    if (d.status !== undefined) {
+      const current = await tx.load.findUnique({ where: { id }, select: { status: true } });
+      if (current && current.status !== d.status) {
+        prevStatus = current.status;
+      }
     }
-  }
 
-  const load = await prisma.load.update({ where: { id }, data: update });
+    const updated = await tx.load.update({ where: { id }, data: update });
 
-  // Post system note if status changed
-  if (prevStatus !== null && d.status !== undefined) {
-    const userName = `${session?.user?.name ?? "Unknown"}`;
-    const userId = (session?.user as { id?: string } | undefined)?.id ?? "";
-    const from = STATUS_LABELS[prevStatus] ?? prevStatus;
-    const to = STATUS_LABELS[d.status] ?? d.status;
-    await prisma.loadNote.create({
-      data: {
-        loadId: id,
-        userId,
-        userName,
-        body: `Status changed: ${from} → ${to}`,
-        isSystem: true,
-      },
-    });
-  }
+    if (prevStatus !== null && d.status !== undefined) {
+      const from = STATUS_LABELS[prevStatus] ?? prevStatus;
+      const to = STATUS_LABELS[d.status] ?? d.status;
+      await tx.loadNote.create({
+        data: {
+          loadId: id,
+          userId,
+          userName,
+          body: `Status changed: ${from} → ${to}`,
+          isSystem: true,
+        },
+      });
+    }
+
+    return updated;
+  });
 
   return NextResponse.json(load);
 }
@@ -151,8 +157,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  await prisma.bid.deleteMany({ where: { loadId: id } });
-  await prisma.loadNote.deleteMany({ where: { loadId: id } });
-  await prisma.load.delete({ where: { id } });
+  // Atomic delete: bids → notes → load. If any step fails the others roll
+  // back, so we never end up with orphan bids/notes pointing at a load that
+  // no longer exists.
+  await prisma.$transaction([
+    prisma.bid.deleteMany({ where: { loadId: id } }),
+    prisma.loadNote.deleteMany({ where: { loadId: id } }),
+    prisma.load.delete({ where: { id } }),
+  ]);
   return NextResponse.json({ ok: true });
 }
