@@ -4,13 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
 import { cached } from "@/lib/cache";
+import { lookupZip, lookupByCoords } from "@/lib/zipcodes";
 import { z } from "zod";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const zipcodes = require("zipcodes") as {
-  lookup: (zip: string) => { latitude: number; longitude: number; city: string; state: string } | null;
-  lookupByCoords: (lat: number, lon: number) => { zip: string; city: string; state: string } | null;
-};
 
 // Reverse-geocode via Nominatim. Cached in Redis (or in-memory) by rounded
 // coords so the OSM Usage Policy (≤1 req/sec) isn't violated when several
@@ -89,7 +84,7 @@ export async function GET() {
     let deliveryCity: string | null = null;
     let deliveryState: string | null = null;
     if (deliveryZip) {
-      const geo = zipcodes.lookup(deliveryZip);
+      const geo = lookupZip(deliveryZip);
       if (geo) { deliveryCity = geo.city; deliveryState = geo.state; }
     }
 
@@ -100,7 +95,7 @@ export async function GET() {
     let streetAddress: string | null = null;
 
     if (d.location && isRecent) {
-      const geoByCoords = zipcodes.lookupByCoords(d.location.lat, d.location.lon);
+      const geoByCoords = lookupByCoords(d.location.lat, d.location.lon);
       if (geoByCoords && US_STATES.has(geoByCoords.state)) {
         gpsCity = geoByCoords.city;
         gpsState = geoByCoords.state;

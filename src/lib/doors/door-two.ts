@@ -1,7 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const zipcodes = require("zipcodes") as {
-  lookup: (zip: string) => { latitude: number; longitude: number } | null;
-};
+import { lookupZip } from "@/lib/zipcodes";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { getDistance } = require("geolib") as {
   getDistance: (
@@ -16,8 +13,8 @@ export function doorTwo(
   pickupZip: string | null | undefined
 ): boolean {
   if (!driverZip || !pickupZip || !searchRadius) return false;
-  const a = zipcodes.lookup(driverZip);
-  const b = zipcodes.lookup(pickupZip);
+  const a = lookupZip(driverZip);
+  const b = lookupZip(pickupZip);
   if (!a || !b) return false;
   const miles = getDistance(
     { latitude: a.latitude, longitude: a.longitude },

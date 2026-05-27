@@ -4,11 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { doorOne } from "@/lib/doors/door-one";
 import { doorTwo } from "@/lib/doors/door-two";
 import { doorThree } from "@/lib/doors/door-three";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const zipcodes = require("zipcodes") as {
-  lookup: (zip: string) => { latitude: number; longitude: number } | null;
-};
+import { lookupZip } from "@/lib/zipcodes";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { getDistance } = require("geolib") as {
   getDistance: (
@@ -33,8 +29,8 @@ function formatEST(date: Date): string {
 
 function milesOut(driverZip: string | null, pickupZip: string | null): number | null {
   if (!driverZip || !pickupZip) return null;
-  const a = zipcodes.lookup(driverZip);
-  const b = zipcodes.lookup(pickupZip);
+  const a = lookupZip(driverZip);
+  const b = lookupZip(pickupZip);
   if (!a || !b) return null;
   const meters = getDistance(
     { latitude: a.latitude, longitude: a.longitude },

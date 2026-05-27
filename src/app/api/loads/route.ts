@@ -5,11 +5,8 @@ import { canAccess, canMutate } from "@/lib/rbac";
 import { Role, LoadStatus } from "@/generated/prisma/enums";
 import { drivingMiles } from "@/lib/mapbox";
 import { parseDateTime } from "@/lib/dates";
+import { lookupZip } from "@/lib/zipcodes";
 import { z } from "zod";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const zipcodes = require("zipcodes") as {
-  lookup: (zip: string) => { latitude: number; longitude: number } | null;
-};
 
 function extractZip(address: string): string | null {
   const m = address.match(/\b(\d{5})(-\d{4})?\b/);
@@ -17,7 +14,7 @@ function extractZip(address: string): string | null {
 }
 
 function zipToCoords(zip: string): { latitude: number; longitude: number } | null {
-  return zipcodes.lookup(zip);
+  return lookupZip(zip);
 }
 
 // Only loads in these statuses are actively being driven — we only spend
