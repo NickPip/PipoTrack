@@ -18,13 +18,13 @@ const updateSchema = z.object({
   emergencyContact: z.string().optional(),
 });
 
-export async function PUT(req: NextRequest, ctx: RouteContext<"/api/users/[id]">) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (session?.user?.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await params;
   const body = await req.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
@@ -67,13 +67,13 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/users/[id]">
   }
 }
 
-export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/users/[id]">) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (session?.user?.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await params;
 
   if (id === session.user.id) {
     return NextResponse.json({ error: "Cannot delete your own account" }, { status: 400 });

@@ -32,14 +32,14 @@ const schema = z.object({
   appPassword: z.string().nullable().optional(),
 });
 
-export async function PUT(req: NextRequest, ctx: RouteContext<"/api/drivers/[id]">) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
   if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await params;
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -64,14 +64,14 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/drivers/[id]
   }
 }
 
-export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/drivers/[id]">) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
   if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await params;
   await prisma.driver.delete({ where: { id } });
   return new NextResponse(null, { status: 204 });
 }

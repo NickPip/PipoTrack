@@ -40,14 +40,14 @@ const schema = z.object({
   driverIds: z.array(z.string()).optional(),
 });
 
-export async function PUT(req: NextRequest, ctx: RouteContext<"/api/units/[id]">) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
   if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await params;
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -105,14 +105,14 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/units/[id]">
   }
 }
 
-export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/units/[id]">) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
   if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await params;
   const body = await req.json();
   const parsed = z.object({ available: z.boolean() }).safeParse(body);
   if (!parsed.success) {
@@ -126,14 +126,14 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/units/[id]
   return NextResponse.json(unit);
 }
 
-export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/units/[id]">) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
   if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await params;
   // Unassign drivers + delete unit atomically so a crash mid-delete doesn't
   // leave drivers pointing at a unit id that no longer exists.
   await prisma.$transaction([
