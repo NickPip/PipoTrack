@@ -70,13 +70,13 @@ model Owner {
 
 model Unit {
   id              String   @id @default(cuid())
-  unitNumber      String
+  unitNumber      String   @unique
   type            String
   make            String?
   model           String?
   year            String?
-  vin             String?
-  plateNumber     String?
+  vin             String?  @unique
+  plateNumber     String?  @unique
   ownerId         String?
   payload         Float?
   equipment       Json?
