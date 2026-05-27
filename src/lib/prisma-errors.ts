@@ -5,36 +5,68 @@ import { Prisma } from "@/generated/prisma/client";
 // "VIN '...' is already in use" instead of "vin '...' is already in use".
 export type FieldLabels = Record<string, string>;
 
-// Pulls a column name out of whatever Prisma puts in P2002's `meta.target`.
-// Shapes seen in the wild:
-//   - string[]: ["vin"]                       — native Prisma engine
-//   - string:   "vin"                         — sometimes
-//   - string:   "Unit_vin_key"                — Postgres constraint name
-//                                               (common with @prisma/adapter-pg)
-//   - string:   "Unit_unitNumber_vin_key"     — multi-column constraint
+// Pulls a column name out of P2002's error meta. Shapes seen in the wild:
 //
-// `knownFields` is the set of column names we have human labels for; we use
-// it to pick the right token out of a constraint name like Unit_vin_key.
-function extractField(
-  target: string | string[] | undefined,
-  knownFields: string[],
-): string | null {
-  if (!target) return null;
-  if (Array.isArray(target)) return target[0] ?? null;
-
-  // Direct column name.
-  if (knownFields.includes(target)) return target;
-
-  // Constraint name like `Unit_vin_key`. Strip the `_key` suffix and look
-  // for the first token that matches a known field.
-  const stripped = target.replace(/_key$/, "");
+// Native Prisma engine:
+//   meta.target = ["vin"] | "vin" | "Unit_vin_key"
+//
+// @prisma/adapter-pg wraps the raw Postgres error and does NOT set
+// meta.target. The constraint name lives at:
+//   meta.driverAdapterError.cause.originalMessage =
+//     'duplicate key value violates unique constraint "Unit_vin_key"'
+//   meta.driverAdapterError.cause.constraint =
+//     { fields: ["vin"] }   (sometimes — depends on driver version)
+//
+// `knownFields` is the set of column names we have human labels for. We use
+// it to pick the right token out of constraint names like `Unit_vin_key`
+// and to filter out the table prefix.
+function parseConstraintName(name: string, knownFields: string[]): string | null {
+  const stripped = name.replace(/_key$/, "").replace(/_unique$/, "");
   const tokens = stripped.split("_");
   const match = tokens.find((t) => knownFields.includes(t));
-  if (match) return match;
+  return match ?? null;
+}
 
-  // Last resort: return the raw string so the user at least sees the
-  // constraint name instead of "value".
-  return target;
+function extractField(err: unknown, knownFields: string[]): string | null {
+  const meta = (err as { meta?: Record<string, unknown> } | undefined)?.meta;
+  if (!meta) return null;
+
+  // 1. Native engine path: meta.target.
+  const target = meta.target as string | string[] | undefined;
+  if (Array.isArray(target) && target.length) {
+    return target.find((t) => knownFields.includes(t)) ?? target[0];
+  }
+  if (typeof target === "string") {
+    if (knownFields.includes(target)) return target;
+    const fromName = parseConstraintName(target, knownFields);
+    if (fromName) return fromName;
+    return target; // last resort: show raw constraint name
+  }
+
+  // 2. pg adapter path: meta.driverAdapterError.cause
+  const cause = (
+    meta.driverAdapterError as { cause?: Record<string, unknown> } | undefined
+  )?.cause;
+  if (cause) {
+    // 2a. constraint.fields is an array of column names (when present).
+    const constraint = cause.constraint as { fields?: string[] } | undefined;
+    if (Array.isArray(constraint?.fields) && constraint.fields.length) {
+      return (
+        constraint.fields.find((f) => knownFields.includes(f)) ??
+        constraint.fields[0]
+      );
+    }
+    // 2b. parse the constraint name out of originalMessage.
+    const msg = typeof cause.originalMessage === "string" ? cause.originalMessage : "";
+    const m = msg.match(/unique constraint "([^"]+)"/);
+    if (m) {
+      const fromName = parseConstraintName(m[1], knownFields);
+      if (fromName) return fromName;
+      return m[1]; // last resort: raw constraint name
+    }
+  }
+
+  return null;
 }
 
 // Catches the most common Prisma write errors and turns them into clean
@@ -57,13 +89,12 @@ export function handlePrismaError(
 
   // P2002 — unique constraint failed.
   if (err.code === "P2002") {
-    const raw = (err.meta as { target?: string | string[] } | undefined)?.target;
-    const field = extractField(raw, Object.keys(labels));
+    const field = extractField(err, Object.keys(labels));
 
-    // If we ended up with the generic "value" label, the meta shape didn't
-    // match anything we know how to parse — log so we can extend the helper.
+    // If we ended up with no field, the meta shape didn't match anything we
+    // know how to parse — log so we can extend the helper.
     if (!field && process.env.NODE_ENV !== "production") {
-      console.warn("[prisma-errors] P2002 with unrecognized meta.target:", err.meta);
+      console.warn("[prisma-errors] P2002 with unrecognized meta:", err.meta);
     }
 
     const label = (field && labels[field]) || field || "value";
