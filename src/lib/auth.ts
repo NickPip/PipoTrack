@@ -3,11 +3,17 @@ import Credentials from "next-auth/providers/credentials";
 import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/generated/prisma/enums";
+import { getLimiter } from "@/lib/rate-limit";
 
 // A fixed dummy hash compared against when the email is not found, so the
 // authorize() path takes ~the same time whether or not the user exists.
 // Without this, an attacker can enumerate valid emails via login timing.
 const DUMMY_HASH_PROMISE = hash("dummy-password-no-one-uses-this", 12);
+
+// 10 login attempts per minute per email. Returning null on overflow makes a
+// rate-limited response indistinguishable from a wrong password — the user
+// just sees "Invalid email or password" and doesn't learn we're throttling.
+const loginLimiter = getLimiter("login", 10, "1 m");
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -22,6 +28,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        const email = (credentials.email as string).toLowerCase().trim();
+        const { success } = await loginLimiter.limit(email);
+        if (!success) return null;
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },

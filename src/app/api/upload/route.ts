@@ -3,8 +3,13 @@ import { auth } from "@/lib/auth";
 import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
 import { uploadFile } from "@/lib/supabase-storage";
+import { clientIp, getLimiter } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+// 20 uploads per minute per IP. Generous enough for batch driver-doc uploads,
+// tight enough to stop a script trying to fill the bucket.
+const uploadLimiter = getLimiter("upload", 20, "1 m");
 
 // Buckets the client is allowed to request, mapped to the actual Supabase
 // bucket. Keeps the API surface unchanged for existing callers (they send
@@ -42,6 +47,19 @@ export async function POST(req: NextRequest) {
   const role = session?.user?.role as Role | undefined;
   if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Key by authenticated user id so one logged-in user can't burn another's
+  // budget from the same office IP.
+  const identifier =
+    (session!.user as { id?: string }).id ?? clientIp(req);
+  const { success, reset } = await uploadLimiter.limit(identifier);
+  if (!success) {
+    const retryAfter = Math.max(1, Math.ceil((reset - Date.now()) / 1000));
+    return NextResponse.json(
+      { error: "Too many uploads — slow down" },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
   }
 
   const formData = await req.formData();
