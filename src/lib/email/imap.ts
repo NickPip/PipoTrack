@@ -155,7 +155,15 @@ export async function pollInbox() {
   }
 }
 
-// Long-running IDLE listener — use this in the bot process
+// Long-running IDLE listener — LOCAL DEV / SELF-HOSTED ONLY.
+//
+// Vercel serverless functions are short-lived (max 300s) and don't preserve
+// open sockets between invocations, so the IMAP IDLE connection here would
+// die immediately in production. This export is only called from
+// src/bot/dev.ts which is meant to run as a long-lived local process.
+//
+// Production uses cron-job.org (external) to hit GET /api/email/poll on a
+// schedule; that's what actually pulls new emails in deployed environments.
 export async function startIdleListener() {
   console.log("[email] Starting IDLE listener...");
 
