@@ -90,30 +90,38 @@ export async function POST(req: NextRequest) {
 
   const { driverIds, ...data } = parsed.data;
 
-  const unit = await prisma.unit.create({
-    data: {
-      unitNumber: data.unitNumber,
-      type: data.type,
-      make: data.make,
-      model: data.model,
-      year: data.year,
-      vin: data.vin,
-      plateNumber: data.plateNumber,
-      ownerId: data.ownerId ?? null,
-      payload: data.payload ?? null,
-      equipment: data.equipment ?? [],
-      dimensions: data.dimensions ?? Prisma.DbNull,
-      registrationUrl: data.registrationUrl ?? null,
-      pictureUrls: data.pictureUrls ?? [],
-    },
-  });
-
-  if (driverIds?.length) {
-    await prisma.driver.updateMany({
-      where: { id: { in: driverIds } },
-      data: { unitId: unit.id },
+  // Create the unit and reassign drivers atomically. Without a transaction,
+  // a crash between the two writes would leave a unit with no drivers (or
+  // drivers reassigned to a unit that no longer exists if the create rolled
+  // back on a constraint error).
+  const unit = await prisma.$transaction(async (tx) => {
+    const created = await tx.unit.create({
+      data: {
+        unitNumber: data.unitNumber,
+        type: data.type,
+        make: data.make,
+        model: data.model,
+        year: data.year,
+        vin: data.vin,
+        plateNumber: data.plateNumber,
+        ownerId: data.ownerId ?? null,
+        payload: data.payload ?? null,
+        equipment: data.equipment ?? [],
+        dimensions: data.dimensions ?? Prisma.DbNull,
+        registrationUrl: data.registrationUrl ?? null,
+        pictureUrls: data.pictureUrls ?? [],
+      },
     });
-  }
+
+    if (driverIds?.length) {
+      await tx.driver.updateMany({
+        where: { id: { in: driverIds } },
+        data: { unitId: created.id },
+      });
+    }
+
+    return created;
+  });
 
   return NextResponse.json(unit, { status: 201 });
 }

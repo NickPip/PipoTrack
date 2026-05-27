@@ -49,35 +49,41 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/units/[id]">
 
   const { driverIds, ...data } = parsed.data;
 
-  const unit = await prisma.unit.update({
-    where: { id },
-    data: {
-      unitNumber: data.unitNumber,
-      type: data.type,
-      make: data.make,
-      model: data.model,
-      year: data.year,
-      vin: data.vin,
-      plateNumber: data.plateNumber,
-      ownerId: data.ownerId ?? null,
-      payload: data.payload ?? null,
-      equipment: data.equipment ?? [],
-      dimensions: data.dimensions ?? Prisma.DbNull,
-      registrationUrl: data.registrationUrl ?? null,
-      pictureUrls: data.pictureUrls ?? [],
-    },
-  });
+  // Unit update + driver reassignment as one transaction. Previously a crash
+  // between the clear step and the reassign step would leave all drivers
+  // unassigned from this unit with no recovery path.
+  const unit = await prisma.$transaction(async (tx) => {
+    const updated = await tx.unit.update({
+      where: { id },
+      data: {
+        unitNumber: data.unitNumber,
+        type: data.type,
+        make: data.make,
+        model: data.model,
+        year: data.year,
+        vin: data.vin,
+        plateNumber: data.plateNumber,
+        ownerId: data.ownerId ?? null,
+        payload: data.payload ?? null,
+        equipment: data.equipment ?? [],
+        dimensions: data.dimensions ?? Prisma.DbNull,
+        registrationUrl: data.registrationUrl ?? null,
+        pictureUrls: data.pictureUrls ?? [],
+      },
+    });
 
-  if (driverIds !== undefined) {
-    // Clear all current assignments for this unit, then set new ones
-    await prisma.driver.updateMany({ where: { unitId: id }, data: { unitId: null } });
-    if (driverIds.length) {
-      await prisma.driver.updateMany({
-        where: { id: { in: driverIds } },
-        data: { unitId: id },
-      });
+    if (driverIds !== undefined) {
+      await tx.driver.updateMany({ where: { unitId: id }, data: { unitId: null } });
+      if (driverIds.length) {
+        await tx.driver.updateMany({
+          where: { id: { in: driverIds } },
+          data: { unitId: id },
+        });
+      }
     }
-  }
+
+    return updated;
+  });
 
   return NextResponse.json(unit);
 }
@@ -111,8 +117,11 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/units/[i
   }
 
   const { id } = await ctx.params;
-  // Unassign drivers before deleting
-  await prisma.driver.updateMany({ where: { unitId: id }, data: { unitId: null } });
-  await prisma.unit.delete({ where: { id } });
+  // Unassign drivers + delete unit atomically so a crash mid-delete doesn't
+  // leave drivers pointing at a unit id that no longer exists.
+  await prisma.$transaction([
+    prisma.driver.updateMany({ where: { unitId: id }, data: { unitId: null } }),
+    prisma.unit.delete({ where: { id } }),
+  ]);
   return new NextResponse(null, { status: 204 });
 }
