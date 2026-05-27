@@ -17,7 +17,8 @@
       "Bash(npm uninstall *)",
       "Bash(npm test *)",
       "Bash(git mv *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(npm run *)"
     ],
     "additionalDirectories": [
       "/Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads",

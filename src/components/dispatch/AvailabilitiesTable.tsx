@@ -254,9 +254,15 @@ export default function AvailabilitiesTable() {
 
   const totalDrivers = drivers.length;
   const stateCount = Object.keys(stateCounts).length;
+  // Date.now() is impure but the "stale" check just needs minute-grain
+  // accuracy — render-tick freshness is fine. Re-renders happen when drivers
+  // refetch anyway. Worth migrating to a tick-based useState if we ever
+  // need to drive auto-refresh of this badge without a data refetch.
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now();
   const staleCount = drivers.filter((d) => {
     if (!d.locationUpdatedAt) return false;
-    return Date.now() - new Date(d.locationUpdatedAt).getTime() > 2 * 60 * 60 * 1000;
+    return now - new Date(d.locationUpdatedAt).getTime() > 2 * 60 * 60 * 1000;
   }).length;
 
   // ── Actions ───────────────────────────────────────────────────────────────

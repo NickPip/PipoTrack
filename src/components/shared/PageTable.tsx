@@ -262,9 +262,6 @@ export default function PageTable<T>({
     textAlign: "left",
   };
 
-  const btnGhost: React.CSSProperties = { height: 34, padding: "0 12px", borderRadius: 9, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 500, letterSpacing: "-0.005em", color: "var(--ink-2)", display: "flex", alignItems: "center", gap: 6, transition: "background 0.14s ease, color 0.14s ease" };
-  const btnPrimary: React.CSSProperties = { height: 34, padding: "0 14px", borderRadius: 9, border: "1px solid var(--ink-1)", background: "var(--ink-1)", cursor: "pointer", fontSize: 13, fontWeight: 600, letterSpacing: "-0.005em", color: "var(--bg)", display: "flex", alignItems: "center", gap: 6, transition: "background 0.14s ease" };
-
   return (
     <div style={{ marginLeft: -24, marginRight: -24, marginTop: "-2rem", background: "var(--bg)", ...FONT }}>
 

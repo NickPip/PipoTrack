@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import PageTable, { TD, TD_MONO, Dim, RowActions, Pill, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
+import PageTable, { TD, TD_MONO, Dim, RowActions, PrimaryBtn, FIRST_TD, LAST_TD } from "@/components/shared/PageTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import UserModal, { type UserRow } from "@/components/users/UserModal";
 

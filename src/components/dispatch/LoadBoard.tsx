@@ -570,6 +570,11 @@ export default function LoadBoard() {
   }, []);
 
   useEffect(() => {
+    // Standard fetch-on-mount + interval poll. React 19's strict rule wants
+    // this expressed via React Query (already a project dep) or moved out of
+    // an effect. TODO: migrate this component to useQuery in a follow-up
+    // refactor — the call surface is small enough to swap cleanly.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLoads();
 
     const interval = setInterval(() => fetchLoads(true), POLL_INTERVAL_MS);

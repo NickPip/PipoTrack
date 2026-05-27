@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 }
 
 // DELETE /api/telegram/setup — remove webhook (for switching to long polling locally)
-export async function DELETE(req: NextRequest) {
+export async function DELETE(_req: NextRequest) {
   try {
     const session = await auth();
     const role = session?.user?.role as Role | undefined;

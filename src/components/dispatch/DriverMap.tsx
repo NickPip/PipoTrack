@@ -44,7 +44,6 @@ const STATUS_LABEL: Record<DriverStatus, string> = {
 };
 
 const SEARCH_BLUE = "#1e6ad2";
-const SEARCH_BLUE_SOFT = "#dbe7fb";
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -507,7 +506,7 @@ export default function DriverMap() {
 
           {/* Filter chips */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {(["all", "available", "dispatched", "off"] as StatusFilter[]).map((s, i) => {
+            {(["all", "available", "dispatched", "off"] as StatusFilter[]).map((s) => {
               const active = statusFilter === s;
               const color = s !== "all" ? STATUS_COLOR[s as DriverStatus] : undefined;
               return (
