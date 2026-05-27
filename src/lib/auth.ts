@@ -1,8 +1,13 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { compare } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/generated/prisma/enums";
+
+// A fixed dummy hash compared against when the email is not found, so the
+// authorize() path takes ~the same time whether or not the user exists.
+// Without this, an attacker can enumerate valid emails via login timing.
+const DUMMY_HASH_PROMISE = hash("dummy-password-no-one-uses-this", 12);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -22,10 +27,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email: credentials.email as string },
         });
 
-        if (!user) return null;
+        // Always run bcrypt.compare — against the real hash if the user exists,
+        // against a dummy hash otherwise — so response time doesn't leak which
+        // emails are registered.
+        const passwordHash = user?.password ?? (await DUMMY_HASH_PROMISE);
+        const valid = await compare(credentials.password as string, passwordHash);
 
-        const valid = await compare(credentials.password as string, user.password);
-        if (!valid) return null;
+        if (!user || !valid) return null;
 
         return {
           id: user.id,
