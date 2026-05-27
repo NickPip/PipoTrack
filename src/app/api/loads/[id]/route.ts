@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccess } from "@/lib/rbac";
+import { canMutate } from "@/lib/rbac";
 import { Role, LoadStatus, FinStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
 
@@ -50,7 +50,9 @@ const schema = z.object({
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "operations")) {
+  // Logistics mutation — only OPERATIONS/ADMIN. ACCOUNTING has read access to
+  // operations data but must not change logistics status.
+  if (!role || !canMutate(role, "operations")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -122,7 +124,7 @@ const accountingSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "accounting")) {
+  if (!role || !canMutate(role, "accounting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -144,7 +146,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "operations")) {
+  if (!role || !canMutate(role, "operations")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

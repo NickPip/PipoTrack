@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccess } from "@/lib/rbac";
+import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
 import { z } from "zod";
 
@@ -23,7 +23,7 @@ const schema = z.object({
 export async function PUT(req: NextRequest, ctx: RouteContext<"/api/owners/[id]">) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "recruiting")) {
+  if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/owners/[id]"
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/owners/[id]">) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "recruiting")) {
+  if (!role || !canMutate(role, "recruiting")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

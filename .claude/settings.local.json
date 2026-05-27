@@ -6,7 +6,9 @@
       "Bash(mkdir -p /Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads/\\\\[id\\\\])",
       "Bash(mkdir -p /Users/pip/Downloads/pipotrack/pipotrack/src/app/api/geocode /Users/pip/Downloads/pipotrack/pipotrack/src/app/api/drivers/map /Users/pip/Downloads/pipotrack/pipotrack/src/app/\\\\\\(dashboard\\\\\\)/dispatch/map /Users/pip/Downloads/pipotrack/pipotrack/src/components/dispatch)",
       "Bash(npx eslint *)",
-      "Bash(git -C /Users/pip/Downloads/pipotrack/pipotrack log --oneline --all)"
+      "Bash(git -C /Users/pip/Downloads/pipotrack/pipotrack log --oneline --all)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "/Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads",

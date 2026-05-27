@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
 import { z } from "zod";
 
@@ -141,7 +142,10 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Driver availability mutations belong to Dispatch.
+  if (!role || !canMutate(role, "dispatch")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);

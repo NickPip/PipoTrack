@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccess } from "@/lib/rbac";
+import { canMutate } from "@/lib/rbac";
 import { Role } from "@/generated/prisma/enums";
 import { getBot } from "@/bot/bot";
 
@@ -14,7 +14,7 @@ export async function POST(
   try {
     const session = await auth();
     const role = session?.user?.role as Role | undefined;
-    if (!role || !canAccess(role, "dispatch")) {
+    if (!role || !canMutate(role, "dispatch")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

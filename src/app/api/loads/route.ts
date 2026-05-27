@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccess } from "@/lib/rbac";
+import { canAccess, canMutate } from "@/lib/rbac";
 import { Role, LoadStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -195,7 +195,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await auth();
   const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "operations")) {
+  // Creating a load is a logistics mutation — exclude ACCOUNTING (read-only on ops).
+  if (!role || !canMutate(role, "operations")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
