@@ -28,6 +28,34 @@ interface AvailDriver {
   availableAt: string | null;
 }
 
+// ── Design tokens (handoff) ───────────────────────────────────────────────────
+
+const T = {
+  bg:          "#FBFAF7",
+  bgSunk:      "#F4F2EC",
+  bgCard:      "#FFFFFF",
+  line:        "#E8E4DA",
+  lineStrong:  "#D6D0C2",
+  lineSoft:    "#EFECE3",
+  ink:         "#1B1A17",
+  ink2:        "#4A4842",
+  ink3:        "#7A776E",
+  ink4:        "#A5A299",
+  accent:      "#1F5E3B",
+  accentSoft:  "#E4EFE6",
+  accentInk:   "#0E3A24",
+  warn:        "#B97309",
+  warnSoft:    "#FBEDD5",
+  bad:         "#A6321D",
+  badSoft:     "#F6DDD4",
+  info:        "#1F4A8C",
+  infoSoft:    "#DFE7F2",
+  selFill:     "#13110D",
+  selInk:      "#F5EFD9",
+};
+
+const MONO = "var(--font-geist-mono, ui-monospace, SFMono-Regular, monospace)";
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const REGIONS = [
@@ -38,21 +66,16 @@ const REGIONS = [
   { name: "SOUTHEAST", states: ["AR","LA","MS","AL","TN","KY","GA","FL","SC","NC","VA","WV","DC"] },
 ];
 
+const ALL_STATES = REGIONS.flatMap((r) => r.states);
+
 const WAY_OPTIONS = ["ANY","N","S","E","W","NE","NW","SE","SW"];
 const OUT_OPTIONS  = [25,50,75,100,150,200,250,300,400,500];
 const MIN_OPTIONS  = [0,25,50,100,150,200,300,500];
 const MAX_OPTIONS  = [500,1000,2000,3000,5000,7500,10000];
 
-const EMOJIS = ["🐯","🦊","🐻","🐼","🐨","🦁","🐸","🦝","🐺","🦅","🦋","🐢","🦘","🦦","🦔"];
 const PAGE_SIZE = 25;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function emoji(id: string) {
-  let h = 0;
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % EMOJIS.length;
-  return EMOJIS[h];
-}
 
 function timeAgo(dateStr: string | null) {
   if (!dateStr) return { label: "—", exact: "", mins: -1 };
@@ -61,7 +84,7 @@ function timeAgo(dateStr: string | null) {
   const exact = new Date(dateStr).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   const label =
     mins < 1   ? "just now"
-    : mins < 60 ? `${mins} min ago`
+    : mins < 60 ? `${mins}m ago`
     : `${Math.floor(mins / 60)}h ago`;
   return { label, exact, mins };
 }
@@ -98,20 +121,21 @@ function InfoSelect({
       onChange={(e) => onChange(e.target.value)}
       onClick={(e) => e.stopPropagation()}
       style={{
-        height: 26,
-        minWidth: 62,
-        border: "1px solid #e4e4e7",
+        height: 24,
+        width: 72,
+        border: `1px solid ${T.line}`,
         borderRadius: 6,
-        padding: "0 22px 0 7px",
-        fontSize: 12,
-        color: "#18181b",
+        padding: "0 20px 0 8px",
+        fontSize: 11.5,
+        color: T.ink,
         background:
-          "#fff url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5'%3E%3Cpath d='M1 1l3.5 3L8 1' stroke='%23a1a1aa' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\") no-repeat right 6px center",
+          `${T.bgSunk} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5'%3E%3Cpath d='M1 1l3.5 3L8 1' stroke='%237A776E' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 6px center`,
         WebkitAppearance: "none",
         appearance: "none",
         cursor: "pointer",
         outline: "none",
-        fontFamily: "var(--font-geist-mono, monospace)",
+        fontFamily: MONO,
+        fontVariantNumeric: "tabular-nums",
         letterSpacing: "-0.01em",
       }}
     >
@@ -121,6 +145,42 @@ function InfoSelect({
         </option>
       ))}
     </select>
+  );
+}
+
+// ── Region checkbox (empty / partial / on) ───────────────────────────────────
+
+function RegionCheckbox({
+  state, onClick,
+}: {
+  state: "empty" | "partial" | "on";
+  onClick: () => void;
+}) {
+  const filled = state === "on";
+  const partial = state === "partial";
+  return (
+    <button
+      role="checkbox"
+      aria-checked={filled ? true : partial ? "mixed" : false}
+      onClick={onClick}
+      style={{
+        width: 14, height: 14, borderRadius: 3,
+        border: `1.5px solid ${filled ? T.accent : T.lineStrong}`,
+        background: filled ? T.accent : partial ? T.bgSunk : T.bgCard,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer", padding: 0, flexShrink: 0,
+        transition: "background 120ms, border-color 120ms",
+      }}
+    >
+      {filled && (
+        <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+          <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+      {partial && (
+        <span style={{ width: 6, height: 2, background: T.ink2, borderRadius: 1 }} />
+      )}
+    </button>
   );
 }
 
@@ -192,6 +252,13 @@ export default function AvailabilitiesTable() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const totalDrivers = drivers.length;
+  const stateCount = Object.keys(stateCounts).length;
+  const staleCount = drivers.filter((d) => {
+    if (!d.locationUpdatedAt) return false;
+    return Date.now() - new Date(d.locationUpdatedAt).getTime() > 2 * 60 * 60 * 1000;
+  }).length;
+
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const patch = useCallback(async (id: string, updates: Record<string, unknown>) => {
@@ -207,7 +274,7 @@ export default function AvailabilitiesTable() {
     setPage(1);
     setSelectedStates((prev) => {
       const next = new Set(prev);
-      next.has(state) ? next.delete(state) : next.add(state);
+      if (next.has(state)) next.delete(state); else next.add(state);
       return next;
     });
   }, []);
@@ -217,7 +284,8 @@ export default function AvailabilitiesTable() {
     setSelectedStates((prev) => {
       const next = new Set(prev);
       const allOn = states.every((s) => next.has(s));
-      allOn ? states.forEach((s) => next.delete(s)) : states.forEach((s) => next.add(s));
+      if (allOn) states.forEach((s) => next.delete(s));
+      else states.forEach((s) => next.add(s));
       return next;
     });
   }, []);
@@ -227,46 +295,143 @@ export default function AvailabilitiesTable() {
     setSelectedStates((prev) => { const n = new Set(prev); n.delete(state); return n; });
   }, []);
 
+  const clearAll = useCallback(() => {
+    setPage(1);
+    setSelectedStates(new Set());
+  }, []);
+
+  const invertSelection = useCallback(() => {
+    setPage(1);
+    setSelectedStates((prev) => {
+      const next = new Set<string>();
+      ALL_STATES.forEach((s) => { if (!prev.has(s)) next.add(s); });
+      return next;
+    });
+  }, []);
+
   const toggleCollapse = useCallback((name: string) => {
-    setCollapsed((prev) => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
+    setCollapsed((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; });
   }, []);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   const headerCell: React.CSSProperties = {
-    padding: "9px 14px",
+    padding: "10px 14px",
     textAlign: "left",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#a1a1aa",
+    fontSize: 10.5,
+    fontWeight: 600,
+    color: T.ink4,
     letterSpacing: "0.06em",
     textTransform: "uppercase",
     whiteSpace: "nowrap",
-    borderBottom: "1px solid #f4f4f5",
-    background: "#fafafa",
+    borderBottom: `1px solid ${T.lineSoft}`,
+    background: T.bg,
   };
 
+  const filteredDriversTotal = filtered.length;
+  const selectedDriversCount = selectedStates.size > 0
+    ? Array.from(selectedStates).reduce((s, c) => s + (stateCounts[c] ?? 0), 0)
+    : totalDrivers;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, color: T.ink, fontVariantNumeric: "tabular-nums" }}>
 
       {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.022em", color: "#09090b", margin: 0 }}>
-          Driver Availabilities
-        </h1>
-        <p style={{ fontSize: 13, color: "#71717a", margin: "3px 0 0" }}>
-          View and manage driver availability by region
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <p style={{ flex: 1, fontSize: 13, color: T.ink3, margin: 0, maxWidth: 820, lineHeight: 1.5 }}>
+          View and manage driver availability by region.{" "}
+          <strong style={{ color: T.ink }}>{totalDrivers} drivers</strong> across{" "}
+          <strong style={{ color: T.ink }}>{stateCount} states</strong>
+          {selectedStates.size > 0 && (
+            <>
+              {" · "}
+              <strong style={{ color: T.accent }}>{filteredDriversTotal} match</strong>{" "}
+              your current filter ({Array.from(selectedStates).join(", ")})
+            </>
+          )}
+          {staleCount > 0 && (
+            <>
+              {". "}
+              <span style={{ color: T.warn }}>{staleCount} drivers haven&apos;t checked in for &gt; 2h.</span>
+            </>
+          )}
         </p>
+        <button
+          onClick={fetchDrivers}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px",
+            borderRadius: 6, border: `1px solid ${T.line}`, background: T.bgCard,
+            fontSize: 12.5, fontWeight: 500, color: T.ink2, cursor: "pointer", whiteSpace: "nowrap",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 6.5a5.5 5.5 0 1 0 5.5-5.5A5.5 5.5 0 0 0 2.5 3L1 1.5" />
+            <path d="M1 4V1.5h2.5" />
+          </svg>
+          Refresh feed
+        </button>
       </div>
 
+      <style>{`
+        @keyframes pulse-dot {
+          0% { box-shadow: 0 0 0 0 rgba(31, 94, 59, 0.45); }
+          70% { box-shadow: 0 0 0 6px rgba(31, 94, 59, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(31, 94, 59, 0); }
+        }
+        @keyframes ping-ring {
+          0% { transform: scale(1); opacity: 0.7; }
+          80%, 100% { transform: scale(2); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .pulse-dot, .ping-ring { animation: none !important; }
+        }
+      `}</style>
+
       {/* ── Filters card ─────────────────────────────────────────────────── */}
-      <div style={{ background: "#fff", border: "1px solid #e4e4e7", borderRadius: 12, padding: "20px 24px" }}>
+      <div style={{ background: T.bgCard, border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden" }}>
+
+        {/* Filter header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "14px 18px", borderBottom: `1px solid ${T.lineSoft}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>Regional filters</span>
+            <span style={{ fontSize: 11.5, color: T.ink3 }}>
+              <strong style={{ color: T.accent, fontWeight: 700 }}>{selectedStates.size}</strong> states selected ·{" "}
+              <strong style={{ color: T.accent, fontWeight: 700 }}>{selectedDriversCount}</strong> drivers
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <button
+              onClick={invertSelection}
+              style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: T.ink3, cursor: "pointer" }}
+            >
+              Invert
+            </button>
+            <button
+              onClick={clearAll}
+              disabled={selectedStates.size === 0}
+              style={{
+                background: "none", border: "none", padding: 0, fontSize: 12,
+                color: selectedStates.size === 0 ? T.ink4 : T.ink3,
+                cursor: selectedStates.size === 0 ? "default" : "pointer",
+              }}
+            >
+              Clear all
+            </button>
+          </div>
+        </div>
 
         {/* Regions */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        <div style={{ padding: "6px 12px 14px" }}>
           {REGIONS.map((region, ri) => {
             const isCollapsed = collapsed.has(region.name);
-            const allSelected = region.states.every((s) => selectedStates.has(s));
+            const selectedInRegion = region.states.filter((s) => selectedStates.has(s)).length;
+            const checkboxState: "empty" | "partial" | "on" =
+              selectedInRegion === 0 ? "empty"
+              : selectedInRegion === region.states.length ? "on"
+              : "partial";
             const regionCount = region.states.reduce((sum, s) => sum + (stateCounts[s] ?? 0), 0);
 
             return (
@@ -275,89 +440,97 @@ export default function AvailabilitiesTable() {
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
-                  gap: 16,
-                  paddingTop: ri === 0 ? 0 : 14,
-                  paddingBottom: 14,
-                  borderBottom: ri < REGIONS.length - 1 ? "1px solid #f4f4f5" : "none",
+                  gap: 14,
+                  padding: "12px 6px",
+                  borderBottom: ri < REGIONS.length - 1 ? `1px solid ${T.lineSoft}` : "none",
                 }}
               >
-                {/* Collapse button */}
-                <button
-                  onClick={() => toggleCollapse(region.name)}
-                  aria-label={isCollapsed ? "Expand" : "Collapse"}
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 5,
-                    border: "1.5px solid #d4d4d8",
-                    background: "#fff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    marginTop: 2,
-                    color: "#71717a",
-                    fontSize: 13,
-                    fontWeight: 400,
-                    lineHeight: 1,
-                    padding: 0,
-                  }}
-                >
-                  {isCollapsed ? "+" : "−"}
-                </button>
-
-                {/* Checkbox */}
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={() => toggleRegion(region.states)}
-                  style={{ width: 14, height: 14, accentColor: "#18181b", cursor: "pointer", marginTop: 3, flexShrink: 0 }}
-                />
-
-                {/* Region label */}
-                <div style={{ minWidth: 120, flexShrink: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#18181b", letterSpacing: "0.04em" }}>
-                    {region.name}
+                {/* Left rail (124 px) */}
+                <div style={{ width: 124, flexShrink: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <RegionCheckbox state={checkboxState} onClick={() => toggleRegion(region.states)} />
+                    <button
+                      onClick={() => toggleCollapse(region.name)}
+                      style={{
+                        background: "none", border: "none", padding: 0, cursor: "pointer",
+                        fontSize: 11, fontWeight: 700, color: T.ink, letterSpacing: "0.06em",
+                      }}
+                    >
+                      {region.name}
+                    </button>
                   </div>
-                  <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
-                    {regionCount} drivers · {region.states.length} states
+                  <div style={{ fontSize: 10.5, color: T.ink3, marginTop: 4, marginLeft: 22, fontFamily: MONO }}>
+                    {region.states.length} states · {regionCount} drivers
                   </div>
                 </div>
 
-                {/* State pills */}
+                {/* State chips */}
                 {!isCollapsed && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 6px", flex: 1 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flex: 1, paddingTop: 1 }}>
                     {region.states.map((state) => {
                       const count = stateCounts[state] ?? 0;
                       const selected = selectedStates.has(state);
+                      const isZero = count === 0 && !selected;
+                      const isHot = count >= 5 && !selected;
+
                       return (
                         <button
                           key={state}
                           onClick={() => toggleState(state)}
+                          aria-pressed={selected}
                           style={{
+                            position: "relative",
                             display: "inline-flex",
                             alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 10,
-                            height: 30,
-                            padding: "0 10px",
+                            gap: 8,
+                            height: 26,
+                            padding: "0 8px 0 10px",
                             borderRadius: 7,
-                            border: selected ? "1.5px solid #18181b" : "1px solid #e4e4e7",
-                            background: selected ? "#18181b" : "#fff",
+                            border: `1px solid ${
+                              selected ? T.selFill
+                              : isHot   ? T.accent
+                              : T.line
+                            }`,
+                            background: selected ? T.selFill : T.bgCard,
                             cursor: "pointer",
-                            minWidth: 56,
-                            transition: "background 120ms, border-color 120ms",
+                            transition: "background 120ms, border-color 120ms, color 120ms",
                           }}
                         >
-                          <span style={{ fontSize: 12, fontWeight: 600, color: selected ? "#fff" : "#3f3f46" }}>
+                          <span
+                            style={{
+                              fontFamily: MONO,
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: selected ? T.selInk : isZero ? T.ink4 : T.ink,
+                              letterSpacing: "0.01em",
+                            }}
+                          >
                             {state}
                           </span>
                           <span
                             style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: selected ? "rgba(255,255,255,.75)" : count === 0 ? "#d4d4d8" : "#18181b",
+                              minWidth: 18,
+                              height: 16,
+                              padding: "0 5px",
+                              borderRadius: 999,
+                              background: selected
+                                ? "rgba(245,239,217,0.18)"
+                                : isHot
+                                  ? T.accentSoft
+                                  : T.bgSunk,
+                              color: selected
+                                ? T.selInk
+                                : isHot
+                                  ? T.accentInk
+                                  : isZero
+                                    ? T.ink4
+                                    : T.ink2,
+                              fontFamily: MONO,
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
                           >
                             {count}
@@ -367,181 +540,169 @@ export default function AvailabilitiesTable() {
                     })}
                   </div>
                 )}
+
+                {/* Collapse toggle (kept tiny on right) */}
+                <button
+                  onClick={() => toggleCollapse(region.name)}
+                  aria-label={isCollapsed ? "Expand region" : "Collapse region"}
+                  style={{
+                    width: 22, height: 22, borderRadius: 5,
+                    border: `1px solid ${T.line}`, background: T.bgCard,
+                    cursor: "pointer", flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: T.ink3, fontSize: 11, fontWeight: 500, lineHeight: 1, padding: 0,
+                    marginTop: 0,
+                  }}
+                >
+                  {isCollapsed ? "+" : "−"}
+                </button>
               </div>
             );
           })}
         </div>
 
         {/* Search row */}
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            alignItems: "center",
-            gap: 0,
-            height: 40,
-            border: "1px solid #e4e4e7",
-            borderRadius: 8,
-            background: "#fafafa",
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, padding: "0 12px" }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#a1a1aa" strokeWidth="1.5">
-              <circle cx="6" cy="6" r="4.5" />
-              <path d="m9.5 9.5 2.5 2.5" strokeLinecap="round" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by Zip, address, unit number, driver name, or DOT..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              style={{
-                flex: 1,
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                fontSize: 13,
-                color: "#18181b",
-              }}
-            />
+        <div style={{ padding: "0 18px 18px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0,
+              height: 40,
+              border: `1px solid ${T.line}`,
+              borderRadius: 8,
+              background: T.bgSunk,
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, padding: "0 14px" }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.ink3} strokeWidth="1.6">
+                <circle cx="6" cy="6" r="4.5" />
+                <path d="m9.5 9.5 2.5 2.5" strokeLinecap="round" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search by Zip, address, unit number, driver name, or DOT..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  outline: "none",
+                  background: "transparent",
+                  fontSize: 13,
+                  color: T.ink,
+                }}
+              />
+            </div>
+
+            {Object.keys(vehicleCounts).length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "0 16px",
+                  borderLeft: `1px solid ${T.line}`,
+                  height: "100%",
+                }}
+              >
+                {Object.entries(vehicleCounts).map(([type, count]) => (
+                  <span key={type} style={{ fontSize: 11.5, color: T.ink3, whiteSpace: "nowrap" }}>
+                    {type.split(" ")[0]}{" "}
+                    <span style={{ fontWeight: 700, color: T.ink, fontFamily: MONO }}>{count}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Vehicle type counts */}
-          {Object.keys(vehicleCounts).length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 16,
-                padding: "0 14px",
-                borderLeft: "1px solid #f4f4f5",
-                height: "100%",
-              }}
-            >
-              {Object.entries(vehicleCounts).map(([type, count]) => (
-                <span key={type} style={{ fontSize: 12, color: "#71717a", whiteSpace: "nowrap" }}>
-                  {type.split(" ")[0]}{" "}
-                  <span style={{ fontWeight: 700, color: "#18181b" }}>{count}</span>
+          {/* Selected pill strip */}
+          {selectedStates.size > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: T.ink4,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                SELECTED
+              </span>
+              {Array.from(selectedStates).map((state) => (
+                <span
+                  key={state}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    height: 22,
+                    padding: "0 4px 0 10px",
+                    borderRadius: 999,
+                    background: T.accentSoft,
+                    color: T.accentInk,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    fontFamily: MONO,
+                  }}
+                >
+                  {state}
+                  <button
+                    onClick={() => removeState(state)}
+                    aria-label={`Remove ${state}`}
+                    style={{
+                      width: 16, height: 16, borderRadius: 999,
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      border: "none", background: "transparent", color: T.accentInk,
+                      cursor: "pointer", padding: 0,
+                    }}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                      <path d="M1 1l6 6M7 1l-6 6" />
+                    </svg>
+                  </button>
                 </span>
               ))}
             </div>
           )}
         </div>
-
-        {/* Selected chips */}
-        {selectedStates.size > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            <span
-              style={{
-                fontSize: 10.5,
-                fontWeight: 700,
-                color: "#a1a1aa",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              SELECTED
-            </span>
-            {Array.from(selectedStates).map((state) => (
-              <button
-                key={state}
-                onClick={() => removeState(state)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  height: 22,
-                  padding: "0 8px",
-                  borderRadius: 999,
-                  border: "1px solid #bbf7d0",
-                  background: "#f0fdf4",
-                  color: "#166534",
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                {state}
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M1 1l6 6M7 1l-6 6" />
-                </svg>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ── Driver table card ─────────────────────────────────────────────── */}
-      <div style={{ background: "#fff", border: "1px solid #e4e4e7", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ background: T.bgCard, border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden" }}>
 
         {/* Table toolbar */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            padding: "13px 20px",
-            borderBottom: "1px solid #f4f4f5",
+            padding: "13px 18px",
+            borderBottom: `1px solid ${T.lineSoft}`,
             gap: 10,
           }}
         >
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#18181b" }}>Available drivers</span>
-          <span style={{ fontSize: 12.5, color: "#a1a1aa" }}>
-            Showing <strong style={{ color: "#52525b" }}>{paginated.length}</strong> of{" "}
-            <strong style={{ color: "#52525b" }}>{filtered.length}</strong> · sorted by check-in time
+          <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>Available drivers</span>
+          <span style={{ fontSize: 12, color: T.ink3 }}>
+            Showing <strong style={{ color: T.ink2, fontWeight: 600 }}>{paginated.length}</strong> of{" "}
+            <strong style={{ color: T.ink2, fontWeight: 600 }}>{filtered.length}</strong> · sorted by check-in time
           </span>
           <div style={{ flex: 1 }} />
 
-          {/* View toggles */}
-          <div style={{ display: "flex", gap: 1, border: "1px solid #e4e4e7", borderRadius: 7, overflow: "hidden" }}>
-            {[
-              { icon: (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M2 3.5h10M2 7h10M2 10.5h10" strokeLinecap="round" />
-                  </svg>
-                ), mode: "list" as const },
-              { icon: (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="2" y="2" width="4" height="4" rx="1" />
-                    <rect x="8" y="2" width="4" height="4" rx="1" />
-                    <rect x="2" y="8" width="4" height="4" rx="1" />
-                    <rect x="8" y="8" width="4" height="4" rx="1" />
-                  </svg>
-                ), mode: "grid" as const },
-            ].map(({ icon, mode }) => (
-              <button
-                key={mode}
-                aria-pressed={true}
-                style={{
-                  width: 30,
-                  height: 28,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "none",
-                  background: "#fafafa",
-                  color: "#71717a",
-                  cursor: "default",
-                }}
-              >
-                {icon}
-              </button>
-            ))}
-          </div>
-
-          {/* Refresh */}
           <button
             onClick={fetchDrivers}
+            aria-label="Refresh"
             style={{
               width: 30,
               height: 30,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "1px solid #e4e4e7",
-              borderRadius: 7,
-              background: "#fff",
-              color: "#71717a",
+              border: `1px solid ${T.line}`,
+              borderRadius: 6,
+              background: T.bgCard,
+              color: T.ink3,
               cursor: "pointer",
             }}
           >
@@ -554,14 +715,26 @@ export default function AvailabilitiesTable() {
 
         {/* Table */}
         {isLoading ? (
-          <div style={{ padding: "52px 20px", textAlign: "center", color: "#a1a1aa", fontSize: 13 }}>Loading…</div>
+          <div style={{ padding: "52px 20px", textAlign: "center", color: T.ink4, fontSize: 13 }}>Loading…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: "52px 20px", textAlign: "center", color: "#a1a1aa", fontSize: 13 }}>
-            No drivers match the current filters.
+          <div style={{ padding: "52px 20px", textAlign: "center", color: T.ink4, fontSize: 13 }}>
+            {selectedStates.size > 0 ? (
+              <>
+                No drivers in <strong style={{ color: T.ink }}>{Array.from(selectedStates).join(", ")}</strong>.{" "}
+                <button
+                  onClick={clearAll}
+                  style={{ background: "none", border: "none", padding: 0, color: T.accent, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Clear filter
+                </button>
+              </>
+            ) : (
+              "No drivers match the current filters."
+            )}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980, fontSize: 12.5 }}>
               <thead>
                 <tr>
                   <th style={{ ...headerCell, width: 80 }}>Unit</th>
@@ -577,36 +750,47 @@ export default function AvailabilitiesTable() {
                       </svg>
                     </span>
                   </th>
-                  <th style={{ ...headerCell, minWidth: 200 }}>Info</th>
-                  <th style={{ ...headerCell }}>Will be available at</th>
+                  <th style={{ ...headerCell, minWidth: 220 }}>Info</th>
+                  <th style={{ ...headerCell }}>Availability</th>
                   <th style={{ ...headerCell, textAlign: "right" }}>Notify</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.map((driver, idx) => {
                   const { label: updLabel, exact: updExact, mins: updMins } = timeAgo(driver.locationUpdatedAt);
+                  const isStale = updMins >= 120 && updMins !== -1;
                   const isOldUpdate = updMins >= 30 && updMins !== -1;
 
                   return (
                     <tr
                       key={driver.id}
                       style={{
-                        borderBottom: idx < paginated.length - 1 ? "1px solid #f9f9f9" : "none",
+                        borderBottom: idx < paginated.length - 1 ? `1px solid ${T.lineSoft}` : "none",
                       }}
                     >
                       {/* Unit */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                          <span
-                            style={{
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              background: driver.isOnline ? "#22c55e" : "#d4d4d8",
-                              flexShrink: 0,
-                            }}
-                          />
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#18181b" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ position: "relative", width: 8, height: 8, flexShrink: 0 }}>
+                            <span
+                              style={{
+                                position: "absolute", inset: 0, borderRadius: "50%",
+                                background: driver.isOnline ? T.accent : T.ink4,
+                              }}
+                            />
+                            {driver.isOnline && (
+                              <span
+                                aria-hidden
+                                className="ping-ring"
+                                style={{
+                                  position: "absolute", inset: 0, borderRadius: "50%",
+                                  background: T.accent, opacity: 0.4,
+                                  animation: "ping-ring 1.8s ease-out infinite",
+                                }}
+                              />
+                            )}
+                          </span>
+                          <span style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 600, color: T.ink }}>
                             {driver.unitNumber ?? "—"}
                           </span>
                         </div>
@@ -614,93 +798,59 @@ export default function AvailabilitiesTable() {
 
                       {/* Driver */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div
-                            style={{
-                              width: 30,
-                              height: 30,
-                              borderRadius: 999,
-                              background: "#f4f4f5",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 16,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {emoji(driver.id)}
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>{driver.name}</div>
+                        {driver.dlNumber && (
+                          <div style={{ fontSize: 10.5, color: T.ink4, fontFamily: MONO, marginTop: 1 }}>
+                            DOT-{driver.dlNumber}
                           </div>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "#18181b" }}>{driver.name}</div>
-                            {driver.dlNumber && (
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: "#a1a1aa",
-                                  fontFamily: "var(--font-geist-mono, monospace)",
-                                }}
-                              >
-                                DOT-{driver.dlNumber}
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                        )}
                       </td>
 
-                      {/* Current Location (live GPS) */}
+                      {/* Current Location */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
                         {driver.streetAddress ? (
                           <>
-                            <div style={{ fontSize: 13, color: "#18181b", maxWidth: 220 }}>
-                              {driver.streetAddress}
-                            </div>
+                            <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink, maxWidth: 220 }}>{driver.streetAddress}</div>
                             {driver.gpsZip && (
-                              <div style={{ fontSize: 11.5, color: "#a1a1aa", fontFamily: "var(--font-geist-mono, monospace)", marginTop: 1 }}>
+                              <div style={{ fontSize: 11, color: T.ink4, fontFamily: MONO, marginTop: 1 }}>
                                 {driver.gpsState} {driver.gpsZip}
                               </div>
                             )}
                           </>
                         ) : driver.gpsCity ? (
                           <>
-                            <div style={{ fontSize: 13, color: "#18181b" }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>
                               {driver.gpsCity}, {driver.gpsState}
                             </div>
-                            <div style={{ fontSize: 11.5, color: "#a1a1aa", fontFamily: "var(--font-geist-mono, monospace)", marginTop: 1 }}>
+                            <div style={{ fontSize: 11, color: T.ink4, fontFamily: MONO, marginTop: 1 }}>
                               {driver.gpsState} {driver.gpsZip}
                             </div>
                           </>
                         ) : (
-                          <span style={{ fontSize: 13, color: "#d4d4d8" }}>—</span>
+                          <span style={{ fontSize: 12.5, color: T.ink4 }}>—</span>
                         )}
                       </td>
 
-                      {/* Delivery Location / ZIP (manually set) */}
+                      {/* Delivery Location / ZIP */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
                         {driver.city ? (
                           <>
-                            <div style={{ fontSize: 13, color: "#18181b" }}>
+                            <div style={{ fontSize: 12.5, color: T.ink, fontWeight: 700 }}>
                               {driver.city}, {driver.state}
                             </div>
-                            <div style={{ fontSize: 11.5, color: "#a1a1aa", fontFamily: "var(--font-geist-mono, monospace)", marginTop: 1 }}>
+                            <div style={{ fontSize: 11, color: T.ink4, fontFamily: MONO, marginTop: 1 }}>
                               {driver.state} {driver.currentZip}
                             </div>
                           </>
                         ) : (
-                          <span style={{ fontSize: 13, color: "#d4d4d8" }}>—</span>
+                          <span style={{ fontSize: 12.5, color: T.ink4 }}>—</span>
                         )}
                       </td>
 
                       {/* Truck */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
-                        <div style={{ fontSize: 13, color: "#18181b" }}>{driver.vehicleType ?? "—"}</div>
-                        <div
-                          style={{
-                            fontSize: 11.5,
-                            color: "#a1a1aa",
-                            fontFamily: "var(--font-geist-mono, monospace)",
-                            marginTop: 1,
-                          }}
-                        >
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>{driver.vehicleType ?? "—"}</div>
+                        <div style={{ fontSize: 11, color: T.ink4, fontFamily: MONO, marginTop: 1 }}>
                           {fmtDims(driver.unitDimensions)}
                         </div>
                       </td>
@@ -709,15 +859,17 @@ export default function AvailabilitiesTable() {
                       <td style={{ padding: "13px 14px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                         <div
                           style={{
-                            fontSize: 13,
+                            fontSize: 12.5,
                             fontWeight: 500,
-                            color: isOldUpdate ? "#d97706" : "#18181b",
+                            color: isStale ? T.warn : isOldUpdate ? T.warn : T.ink,
                           }}
                         >
                           {updLabel}
                         </div>
                         {updExact && (
-                          <div style={{ fontSize: 11.5, color: "#a1a1aa", marginTop: 1 }}>{updExact}</div>
+                          <div style={{ fontSize: 11, color: T.ink4, marginTop: 1, fontFamily: MONO }}>
+                            {updExact}
+                          </div>
                         )}
                       </td>
 
@@ -725,13 +877,13 @@ export default function AvailabilitiesTable() {
                       <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 11, color: "#a1a1aa", width: 28 }}>OUT</span>
+                            <span style={{ fontSize: 10, color: T.ink4, width: 26, letterSpacing: "0.04em", fontWeight: 600 }}>OUT</span>
                             <InfoSelect
                               value={driver.outMiles}
                               options={OUT_OPTIONS}
                               onChange={(v) => patch(driver.id, { outMiles: parseInt(v, 10) })}
                             />
-                            <span style={{ fontSize: 11, color: "#a1a1aa", width: 28, marginLeft: 4 }}>MIN</span>
+                            <span style={{ fontSize: 10, color: T.ink4, width: 26, marginLeft: 4, letterSpacing: "0.04em", fontWeight: 600 }}>MIN</span>
                             <InfoSelect
                               value={driver.minMiles}
                               options={MIN_OPTIONS}
@@ -739,13 +891,13 @@ export default function AvailabilitiesTable() {
                             />
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 11, color: "#a1a1aa", width: 28 }}>WAY</span>
+                            <span style={{ fontSize: 10, color: T.ink4, width: 26, letterSpacing: "0.04em", fontWeight: 600 }}>WAY</span>
                             <InfoSelect
                               value={driver.wayDirection}
                               options={WAY_OPTIONS}
                               onChange={(v) => patch(driver.id, { wayDirection: v })}
                             />
-                            <span style={{ fontSize: 11, color: "#a1a1aa", width: 28, marginLeft: 4 }}>MAX</span>
+                            <span style={{ fontSize: 10, color: T.ink4, width: 26, marginLeft: 4, letterSpacing: "0.04em", fontWeight: 600 }}>MAX</span>
                             <InfoSelect
                               value={driver.maxMiles}
                               options={MAX_OPTIONS}
@@ -755,28 +907,31 @@ export default function AvailabilitiesTable() {
                         </div>
                       </td>
 
-                      {/* Will be available at */}
+                      {/* Availability */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                         {!driver.isAvailable ? (
-                          <span style={{ fontSize: 12.5, color: "#a1a1aa" }}>Unavailable</span>
+                          <span style={{ fontSize: 12, color: T.ink4 }}>Unavailable</span>
                         ) : driver.availableAt ? (
                           <div>
-                            <div style={{ fontSize: 12.5, fontWeight: 600, color: "#2563eb" }}>
-                              {new Date(driver.availableAt).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                            <div style={{ fontSize: 12, fontWeight: 600, color: T.warn }}>
+                              Free in{" "}
+                              <span style={{ fontFamily: MONO }}>
+                                {new Date(driver.availableAt).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
                             </div>
                           </div>
                         ) : (
                           <div>
-                            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#16a34a" }}>
-                              Available Now
+                            <div style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>
+                              Available <span style={{ fontWeight: 700 }}>now</span>
                             </div>
                             {updMins >= 0 && (
-                              <div style={{ fontSize: 11, color: "#86efac", marginTop: 1 }}>
+                              <div style={{ fontSize: 10.5, color: T.ink4, marginTop: 1, fontFamily: MONO }}>
                                 {sinceLabel(updMins)}
                               </div>
                             )}
@@ -787,7 +942,6 @@ export default function AvailabilitiesTable() {
                       {/* Notify + toggle */}
                       <td style={{ padding: "13px 14px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                          {/* Bell */}
                           <button
                             aria-label="Notify driver"
                             style={{
@@ -795,7 +949,7 @@ export default function AvailabilitiesTable() {
                               background: "none",
                               cursor: "pointer",
                               padding: 4,
-                              color: "#d4d4d8",
+                              color: T.ink4,
                               display: "flex",
                               alignItems: "center",
                             }}
@@ -806,7 +960,6 @@ export default function AvailabilitiesTable() {
                             </svg>
                           </button>
 
-                          {/* Toggle */}
                           <button
                             role="switch"
                             aria-checked={driver.isAvailable}
@@ -816,11 +969,12 @@ export default function AvailabilitiesTable() {
                               width: 38,
                               height: 22,
                               borderRadius: 999,
-                              background: driver.isAvailable ? "#16a34a" : "#e4e4e7",
+                              background: driver.isAvailable ? T.accent : T.lineStrong,
                               border: "none",
                               cursor: "pointer",
                               transition: "background 180ms ease",
                               flexShrink: 0,
+                              padding: 0,
                             }}
                           >
                             <span
@@ -832,7 +986,7 @@ export default function AvailabilitiesTable() {
                                 height: 16,
                                 borderRadius: "50%",
                                 background: "#fff",
-                                transition: "left 180ms ease",
+                                transition: "left 180ms cubic-bezier(.4,.6,.3,1)",
                                 boxShadow: "0 1px 3px rgba(0,0,0,.18)",
                               }}
                             />
@@ -853,35 +1007,32 @@ export default function AvailabilitiesTable() {
             style={{
               display: "flex",
               alignItems: "center",
-              padding: "11px 20px",
-              borderTop: "1px solid #f4f4f5",
+              padding: "11px 18px",
+              borderTop: `1px solid ${T.lineSoft}`,
               gap: 12,
             }}
           >
-            <span style={{ fontSize: 12, color: "#a1a1aa", flex: 1 }}>
-              {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+            <span style={{ fontSize: 11.5, color: T.ink3, flex: 1 }}>
+              Showing <strong style={{ color: T.ink2, fontWeight: 600 }}>{filtered.length}</strong> of{" "}
+              <strong style={{ color: T.ink2, fontWeight: 600 }}>{totalDrivers}</strong> active drivers
               {selectedStates.size > 0 && (
                 <> · matches your filter ({Array.from(selectedStates).join(", ")})</>
               )}
             </span>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
                   style={{
-                    width: 28,
-                    height: 28,
-                    border: "1px solid #e4e4e7",
-                    borderRadius: 7,
-                    background: "#fff",
+                    width: 28, height: 28,
+                    border: `1px solid ${T.line}`, borderRadius: 6,
+                    background: T.bgCard,
                     cursor: page === 1 ? "default" : "pointer",
-                    color: page === 1 ? "#d4d4d8" : "#52525b",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    color: page === 1 ? T.ink4 : T.ink2,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: 0,
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -894,19 +1045,16 @@ export default function AvailabilitiesTable() {
                     key={p}
                     onClick={() => setPage(p)}
                     style={{
-                      width: 28,
-                      height: 28,
-                      border: "1px solid",
-                      borderColor: page === p ? "#18181b" : "#e4e4e7",
-                      borderRadius: 7,
-                      background: page === p ? "#18181b" : "#fff",
-                      color: page === p ? "#fff" : "#52525b",
-                      fontSize: 12.5,
-                      fontWeight: page === p ? 600 : 400,
+                      minWidth: 28, height: 28, padding: "0 8px",
+                      border: `1px solid ${page === p ? T.selFill : T.line}`,
+                      borderRadius: 6,
+                      background: page === p ? T.selFill : T.bgCard,
+                      color: page === p ? T.selInk : T.ink2,
+                      fontSize: 12,
+                      fontWeight: page === p ? 600 : 500,
                       cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontFamily: MONO,
                     }}
                   >
                     {p}
@@ -917,16 +1065,13 @@ export default function AvailabilitiesTable() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
                   style={{
-                    width: 28,
-                    height: 28,
-                    border: "1px solid #e4e4e7",
-                    borderRadius: 7,
-                    background: "#fff",
+                    width: 28, height: 28,
+                    border: `1px solid ${T.line}`, borderRadius: 6,
+                    background: T.bgCard,
                     cursor: page === totalPages ? "default" : "pointer",
-                    color: page === totalPages ? "#d4d4d8" : "#52525b",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    color: page === totalPages ? T.ink4 : T.ink2,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: 0,
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
