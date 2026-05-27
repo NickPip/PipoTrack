@@ -5,6 +5,38 @@ import { Prisma } from "@/generated/prisma/client";
 // "VIN '...' is already in use" instead of "vin '...' is already in use".
 export type FieldLabels = Record<string, string>;
 
+// Pulls a column name out of whatever Prisma puts in P2002's `meta.target`.
+// Shapes seen in the wild:
+//   - string[]: ["vin"]                       — native Prisma engine
+//   - string:   "vin"                         — sometimes
+//   - string:   "Unit_vin_key"                — Postgres constraint name
+//                                               (common with @prisma/adapter-pg)
+//   - string:   "Unit_unitNumber_vin_key"     — multi-column constraint
+//
+// `knownFields` is the set of column names we have human labels for; we use
+// it to pick the right token out of a constraint name like Unit_vin_key.
+function extractField(
+  target: string | string[] | undefined,
+  knownFields: string[],
+): string | null {
+  if (!target) return null;
+  if (Array.isArray(target)) return target[0] ?? null;
+
+  // Direct column name.
+  if (knownFields.includes(target)) return target;
+
+  // Constraint name like `Unit_vin_key`. Strip the `_key` suffix and look
+  // for the first token that matches a known field.
+  const stripped = target.replace(/_key$/, "");
+  const tokens = stripped.split("_");
+  const match = tokens.find((t) => knownFields.includes(t));
+  if (match) return match;
+
+  // Last resort: return the raw string so the user at least sees the
+  // constraint name instead of "value".
+  return target;
+}
+
 // Catches the most common Prisma write errors and turns them into clean
 // JSON responses. Use as the catch arm of an API route:
 //
@@ -23,12 +55,17 @@ export function handlePrismaError(
 ): NextResponse | null {
   if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return null;
 
-  // P2002 — unique constraint failed. Prisma puts the conflicting columns in
-  // err.meta.target which is either a string or string[].
+  // P2002 — unique constraint failed.
   if (err.code === "P2002") {
     const raw = (err.meta as { target?: string | string[] } | undefined)?.target;
-    const fields = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    const field = fields[0];
+    const field = extractField(raw, Object.keys(labels));
+
+    // If we ended up with the generic "value" label, the meta shape didn't
+    // match anything we know how to parse — log so we can extend the helper.
+    if (!field && process.env.NODE_ENV !== "production") {
+      console.warn("[prisma-errors] P2002 with unrecognized meta.target:", err.meta);
+    }
+
     const label = (field && labels[field]) || field || "value";
     const v = field && values[field];
     const valuePart = v != null && v !== "" ? ` "${v}"` : "";
