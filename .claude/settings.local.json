@@ -12,7 +12,10 @@
       "Bash(git push *)",
       "Bash(npx tsx *)",
       "Bash(find /Users/pip/Downloads -maxdepth 4 -iname \"*availab*\" -o -iname \"*driver*availab*\" 2>/dev/null | head -20)",
-      "Read(//Users/pip/Downloads/**)"
+      "Read(//Users/pip/Downloads/**)",
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)",
+      "Bash(npm test *)"
     ],
     "additionalDirectories": [
       "/Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads",
