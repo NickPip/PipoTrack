@@ -56,7 +56,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
 
-  const { password, ...data } = parsed.data;
+  const { password, ...rest } = parsed.data;
+  // Normalize email so storage matches the case-insensitive login lookup and
+  // the unique constraint can't be sidestepped with different casing.
+  const data = { ...rest, email: rest.email.toLowerCase().trim() };
   const hashed = await hash(password, 12);
 
   try {

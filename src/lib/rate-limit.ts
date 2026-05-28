@@ -21,6 +21,14 @@ const cache = new Map<string, Limiter>();
 
 function buildLimiter(prefix: string, requests: number, window: Window): Limiter {
   if (!HAS_REDIS) {
+    // In production the no-op fallback would silently disable abuse protection
+    // (e.g. login brute-force throttling), so refuse rather than fail open.
+    // Locally it's fine — dev rarely provisions Redis.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        `Rate limiter "${prefix}" requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in production`,
+      );
+    }
     return {
       async limit() {
         return { success: true, reset: 0, remaining: requests };

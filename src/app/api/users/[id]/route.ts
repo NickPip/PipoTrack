@@ -32,6 +32,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { password, ...data } = parsed.data;
+  // Keep stored email lowercased to match the case-insensitive login lookup.
+  if (data.email) data.email = data.email.toLowerCase().trim();
   const updateData: Record<string, unknown> = { ...data };
   if (password) updateData.password = await hash(password, 12);
 

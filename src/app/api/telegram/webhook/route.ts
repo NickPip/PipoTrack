@@ -13,8 +13,16 @@ function safeEqual(a: string, b: string): boolean {
 
 export async function POST(req: Request): Promise<Response> {
   const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (secretToken) {
-    const incoming = (req.headers as Headers).get("x-telegram-bot-api-secret-token");
+  if (!secretToken) {
+    // No secret configured. In production this means the endpoint would accept
+    // unauthenticated calls — refuse instead of failing open. Locally we allow
+    // it so the bot can be exercised without provisioning the secret.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[telegram/webhook] TELEGRAM_WEBHOOK_SECRET not set — rejecting");
+      return new Response("Webhook not configured", { status: 503 });
+    }
+  } else {
+    const incoming = req.headers.get("x-telegram-bot-api-secret-token");
     if (!incoming || !safeEqual(incoming, secretToken)) {
       return new Response("Unauthorized", { status: 401 });
     }

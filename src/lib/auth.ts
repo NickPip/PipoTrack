@@ -33,8 +33,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const { success } = await loginLimiter.limit(email);
         if (!success) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+        // Case-insensitive lookup keyed by the same normalized value as the
+        // limiter. New users are stored lowercased; the insensitive match also
+        // covers any legacy mixed-case rows so they can't get locked out.
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: email, mode: "insensitive" } },
         });
 
         // Always run bcrypt.compare — against the real hash if the user exists,
