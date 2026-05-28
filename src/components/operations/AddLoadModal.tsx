@@ -189,6 +189,9 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
   const { data: units = [] } = useQuery({ queryKey: ["units"], queryFn: fetchUnits, enabled: open });
 
   const dispatchers = users.filter(u => u.role === "DISPATCHER" || u.role === "ADMIN");
+  // Tracking is owned by Operations (they manage the load through delivery);
+  // Admin is included as the catch-all super-role, matching `dispatchers`.
+  const trackers = users.filter(u => u.role === "OPERATIONS" || u.role === "ADMIN");
 
   const {
     register,
@@ -418,7 +421,7 @@ export default function AddLoadModal({ open, onClose, onSaved, load }: AddLoadMo
                         <Ctrl err={!!errors.trackingId} chevron>
                           <select className="am-sel" {...register("trackingId")} aria-required="true">
                             <option value="">Select tracking user</option>
-                            {users.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
+                            {trackers.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
                           </select>
                         </Ctrl>
                       </Field>

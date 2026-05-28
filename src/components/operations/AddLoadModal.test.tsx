@@ -13,7 +13,14 @@ beforeEach(() => {
   fetchMock.mockImplementation(async (url: string) => {
     const u = String(url);
     if (u === "/api/users")
-      return { ok: true, json: async () => [{ id: "user-1", name: "Dee", surname: "Spatcher", role: "DISPATCHER" }] };
+      return {
+        ok: true,
+        json: async () => [
+          { id: "u-disp", name: "Dee", surname: "Spatcher", role: "DISPATCHER" },
+          { id: "u-ops", name: "Ollie", surname: "Ops", role: "OPERATIONS" },
+          { id: "u-rec", name: "Reese", surname: "Cruit", role: "RECRUITING" },
+        ],
+      };
     if (u === "/api/units") return { ok: true, json: async () => [] };
     return { ok: true, json: async () => ({}) };
   });
@@ -57,6 +64,21 @@ describe("AddLoadModal", () => {
 
     expect(await screen.findAllByText("Required")).not.toHaveLength(0);
     expect(loadCalls()).toHaveLength(0);
+  });
+
+  it("offers only Operations/Admin as Tracking ID and Dispatcher/Admin as Dispatcher", async () => {
+    renderWithClient(<AddLoadModal open onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    // Wait for the users query to populate the dropdowns.
+    await screen.findByRole("option", { name: "Dee Spatcher" });
+
+    // Operations user is a Tracking option; Dispatcher is a Dispatcher option;
+    // each appears exactly once (only in its eligible select).
+    expect(screen.getAllByRole("option", { name: "Ollie Ops" })).toHaveLength(1);
+    expect(screen.getAllByRole("option", { name: "Dee Spatcher" })).toHaveLength(1);
+
+    // The Recruiting user is eligible for neither field.
+    expect(screen.queryByRole("option", { name: "Reese Cruit" })).toBeNull();
   });
 
   it("renders edit mode with the load number and Save changes button", () => {
