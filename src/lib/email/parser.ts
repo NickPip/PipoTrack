@@ -92,8 +92,7 @@ function parsePickupDeliveryFromText(text: string): {
 }
 
 export function parseSylectusEmail(html: string, text?: string): ParsedLoad {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const $: any = cheerio.load(html);
+  const $ = cheerio.load(html);
 
   // Pull the text value that follows a bold label like "Broker Name:"
   function labelValue(label: string): string {

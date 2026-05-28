@@ -65,14 +65,14 @@ function Sect({ n, label }: { n: number; label: string }) {
   );
 }
 
-function Field({ label, required, optional, error, children }: { label: string; required?: boolean; optional?: boolean; error?: string; children: React.ReactNode }) {
+function Field({ htmlFor, label, required, optional, error, children }: { htmlFor?: string; label: string; required?: boolean; optional?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.005em" }}>
+      <label htmlFor={htmlFor} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 500, color: "var(--ink-1)", letterSpacing: "-0.005em" }}>
         {label}
         {required && <span style={{ color: "var(--danger)", fontSize: 13, lineHeight: 1 }}>*</span>}
         {optional && <span style={{ fontSize: 10.5, fontWeight: 500, color: "var(--ink-4)", textTransform: "uppercase", letterSpacing: "0.06em", marginLeft: 4 }}>Optional</span>}
-      </span>
+      </label>
       {children}
       {error && <span style={{ fontSize: 11.5, color: "var(--danger)" }}>{error}</span>}
     </div>
@@ -236,39 +236,39 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
                   <Sect n={1} label="Account" />
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <Field label="First Name" required error={errors.name?.message}>
+                      <Field htmlFor="usrm-name" label="First Name" required error={errors.name?.message}>
                         <Ctrl err={!!errors.name}>
-                          <input className="am-input" {...register("name")} placeholder="John" autoFocus />
+                          <input id="usrm-name" className="am-input" {...register("name")} placeholder="John" autoFocus />
                         </Ctrl>
                       </Field>
-                      <Field label="Last Name" required error={errors.surname?.message}>
+                      <Field htmlFor="usrm-surname" label="Last Name" required error={errors.surname?.message}>
                         <Ctrl err={!!errors.surname}>
-                          <input className="am-input" {...register("surname")} placeholder="Doe" />
+                          <input id="usrm-surname" className="am-input" {...register("surname")} placeholder="Doe" />
                         </Ctrl>
                       </Field>
                     </div>
 
-                    <Field label="Email" required error={errors.email?.message}>
+                    <Field htmlFor="usrm-email" label="Email" required error={errors.email?.message}>
                       <Ctrl err={!!errors.email}>
-                        <input className="am-input" {...register("email")} type="email" placeholder="john@company.com" />
+                        <input id="usrm-email" className="am-input" {...register("email")} type="email" placeholder="john@company.com" />
                       </Ctrl>
                     </Field>
 
-                    <Field label={isEdit ? "New Password (leave blank to keep)" : "Password"} required={!isEdit} error={errors.password?.message}>
+                    <Field htmlFor="usrm-password" label={isEdit ? "New Password (leave blank to keep)" : "Password"} required={!isEdit} error={errors.password?.message}>
                       <Ctrl err={!!errors.password}>
-                        <input className="am-input" {...register("password")} type="password" placeholder="••••••••" />
+                        <input id="usrm-password" className="am-input" {...register("password")} type="password" placeholder="••••••••" />
                       </Ctrl>
                     </Field>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <Field label="ID Number" required error={errors.idNumber?.message}>
+                      <Field htmlFor="usrm-idNumber" label="ID Number" required error={errors.idNumber?.message}>
                         <Ctrl err={!!errors.idNumber}>
-                          <input className="am-input" {...register("idNumber")} placeholder="ID001" />
+                          <input id="usrm-idNumber" className="am-input" {...register("idNumber")} placeholder="ID001" />
                         </Ctrl>
                       </Field>
-                      <Field label="Role" required>
+                      <Field htmlFor="usrm-role" label="Role" required>
                         <Ctrl chevron>
-                          <select className="am-sel" {...register("role")}>
+                          <select id="usrm-role" className="am-sel" {...register("role")}>
                             {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                           </select>
                         </Ctrl>
@@ -282,27 +282,27 @@ export default function UserModal({ open, onClose, onSaved, user }: UserModalPro
                   <Sect n={2} label="Contact" />
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <Field label="Phone" required error={errors.phoneNumber?.message}>
+                      <Field htmlFor="usrm-phoneNumber" label="Phone" required error={errors.phoneNumber?.message}>
                         <Ctrl err={!!errors.phoneNumber}>
-                          <input className="am-input" {...register("phoneNumber")} placeholder="+1 555 0000" />
+                          <input id="usrm-phoneNumber" className="am-input" {...register("phoneNumber")} placeholder="+1 555 0000" />
                         </Ctrl>
                       </Field>
-                      <Field label="Phone 2" optional>
+                      <Field htmlFor="usrm-phone2" label="Phone 2" optional>
                         <Ctrl>
-                          <input className="am-input" {...register("phone2")} placeholder="+1 555 0001" />
+                          <input id="usrm-phone2" className="am-input" {...register("phone2")} placeholder="+1 555 0001" />
                         </Ctrl>
                       </Field>
                     </div>
 
-                    <Field label="Address" optional>
+                    <Field htmlFor="usrm-address" label="Address" optional>
                       <Ctrl>
-                        <input className="am-input" {...register("address")} placeholder="123 Main St" />
+                        <input id="usrm-address" className="am-input" {...register("address")} placeholder="123 Main St" />
                       </Ctrl>
                     </Field>
 
-                    <Field label="Emergency Contact" optional>
+                    <Field htmlFor="usrm-emergencyContact" label="Emergency Contact" optional>
                       <Ctrl>
-                        <input className="am-input" {...register("emergencyContact")} placeholder="Jane Doe +1 555 9999" />
+                        <input id="usrm-emergencyContact" className="am-input" {...register("emergencyContact")} placeholder="Jane Doe +1 555 9999" />
                       </Ctrl>
                     </Field>
                   </div>

@@ -47,6 +47,15 @@ describe("UserModal", () => {
     expect(screen.getByText("Fields marked with * are required.")).toBeInTheDocument();
   });
 
+  it("associates each label with its control (accessibility)", () => {
+    render(<UserModal open onClose={vi.fn()} onSaved={vi.fn()} />);
+    // getByLabelText only resolves when the <label> is wired to the control.
+    expect(screen.getByLabelText(/First Name/)).toBe(screen.getByPlaceholderText("John"));
+    expect(screen.getByLabelText(/Email/)).toBe(screen.getByPlaceholderText("john@company.com"));
+    expect(screen.getByLabelText(/ID Number/)).toBe(screen.getByPlaceholderText("ID001"));
+    expect((screen.getByLabelText(/Role/) as HTMLElement).tagName).toBe("SELECT");
+  });
+
   it("blocks submit and shows validation errors when required fields are empty", async () => {
     const user = userEvent.setup();
     render(<UserModal open onClose={vi.fn()} onSaved={vi.fn()} />);
