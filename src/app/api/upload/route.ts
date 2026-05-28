@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { uploadFile } from "@/lib/supabase-storage";
 import { clientIp, getLimiter } from "@/lib/rate-limit";
+import { sniffMime } from "@/lib/file-sniff";
 
 export const runtime = "nodejs";
 
@@ -81,13 +82,26 @@ export async function POST(req: NextRequest) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  // Derive extension from the MIME allowlist rather than the user-supplied
-  // filename, so the stored object name can't pretend to be something else.
-  const ext = EXT_FROM_MIME[file.type];
+
+  // The declared MIME (file.type) is client-controlled and spoofable. Sniff the
+  // real type from the file's magic bytes and reject anything that isn't a
+  // genuine allowed binary format — this is what actually blocks an HTML/SVG
+  // payload masquerading as image/png.
+  const detected = sniffMime(buffer);
+  if (!detected || !ALLOWED_MIME.has(detected)) {
+    return NextResponse.json(
+      { error: "File content does not match an allowed type" },
+      { status: 415 },
+    );
+  }
+
+  // Derive extension and stored content-type from the *detected* type, not the
+  // user-supplied filename or declared MIME.
+  const ext = EXT_FROM_MIME[detected];
   const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
   try {
-    const url = await uploadFile(bucket, path, buffer, file.type);
+    const url = await uploadFile(bucket, path, buffer, detected);
     return NextResponse.json({ url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upload failed";
