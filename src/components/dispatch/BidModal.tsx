@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import styles from "./tendered.module.css";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,22 +74,38 @@ interface BidModalProps {
 function timeAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}mins ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}min ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
-    month: "2-digit", day: "2-digit", year: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   });
 }
 
-function bidRateLabel(bid: Bid): string {
-  if (bid.status === "sent")    return "Waiting…";
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function unitLabel(d: BidDriver): string {
+  return d.unit ? `UNIT-${d.unit.unitNumber}` : "NO-UNIT";
+}
+
+function rateText(bid: Bid): string {
   if (bid.status === "skipped") return "Skipped";
-  if (bid.amount > 0)           return `$${bid.amount}`;
+  if (bid.status === "sent" && bid.amount <= 0) return "Waiting";
+  if (bid.amount > 0) return `$${bid.amount}`;
   return "N/A";
 }
 
@@ -96,288 +113,100 @@ function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+const SPEC_CHECKS = ["Straps", "Blankets", "Dolly", "Portable Printer", "TWIC"];
+function hasEquip(equipment: string[] | null, name: string): boolean {
+  if (!equipment) return false;
+  const n = name.toLowerCase();
+  return equipment.some((e) => e.toLowerCase().includes(n));
+}
 
-const S = {
-  overlay: {
-    position: "fixed" as const,
-    inset: 0,
-    background: "rgba(0,0,0,0.45)",
-    zIndex: 50,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-
-  modal: {
-    background: "#fff",
-    borderRadius: 16,
-    width: "100%",
-    maxWidth: 1100,
-    maxHeight: "90vh",
-    display: "flex",
-    flexDirection: "column" as const,
-    overflow: "hidden",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-  },
-
-  header: {
-    padding: "20px 24px 16px",
-    borderBottom: "1px solid #f0f0f0",
-    flexShrink: 0,
-  },
-
-  headerTitle: { fontSize: 18, fontWeight: 700, color: "#111", marginBottom: 2 },
-  headerSub: { fontSize: 13, color: "#9ca3af" },
-
-  closeBtn: {
-    position: "absolute" as const,
-    top: 16,
-    right: 20,
-    width: 32,
-    height: 32,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: 20,
-    color: "#6b7280",
-  },
-
-  body: {
-    display: "flex",
-    flex: 1,
-    overflow: "hidden",
-  },
-
-  // Left — driver list
-  left: {
-    width: 200,
-    borderRight: "1px solid #f0f0f0",
-    overflowY: "auto" as const,
-    flexShrink: 0,
-    padding: "8px 0",
-  },
-
-  driverCard: (active: boolean): React.CSSProperties => ({
-    padding: "10px 14px",
-    cursor: "pointer",
-    background: active ? "#16a34a" : "#fff",
-    borderBottom: "1px solid #f5f5f5",
-    transition: "background 0.1s",
-  }),
-
-  driverCardName: (active: boolean): React.CSSProperties => ({
-    fontSize: 12,
-    fontWeight: 600,
-    color: active ? "#fff" : "#111",
-    marginBottom: 3,
-    lineHeight: 1.3,
-  }),
-
-  driverCardMeta: (active: boolean): React.CSSProperties => ({
-    fontSize: 11,
-    color: active ? "rgba(255,255,255,0.8)" : "#6b7280",
-    marginBottom: 2,
-  }),
-
-  driverCardRate: (active: boolean): React.CSSProperties => ({
-    fontSize: 11,
-    color: active ? "rgba(255,255,255,0.9)" : "#2563eb",
-    fontWeight: 500,
-  }),
-
-  // Middle — driver detail + bid form
-  middle: {
-    flex: 1,
-    padding: "20px 22px",
-    overflowY: "auto" as const,
-    borderRight: "1px solid #f0f0f0",
-  },
-
-  row2: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 4,
-    marginBottom: 12,
-  },
-
-  metaLabel: { fontSize: 12, color: "#9ca3af" },
-  metaValue: { fontSize: 13, fontWeight: 500, color: "#111" },
-
-  divider: { borderTop: "1px solid #f0f0f0", margin: "14px 0" },
-
-  copyBtn: {
-    flex: 1,
-    padding: "8px 0",
-    border: "none",
-    borderRadius: 8,
-    background: "#2563eb",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-
-  equipTag: {
-    display: "inline-block",
-    padding: "2px 8px",
-    borderRadius: 4,
-    background: "#f3f4f6",
-    color: "#374151",
-    fontSize: 11,
-    fontWeight: 500,
-    marginRight: 4,
-    marginBottom: 4,
-  },
-
-  unitBadge: {
-    display: "inline-block",
-    padding: "3px 10px",
-    borderRadius: 6,
-    background: "#fef9c3",
-    border: "1px solid #fde047",
-    color: "#713f12",
-    fontSize: 12,
-    fontWeight: 600,
-    marginBottom: 12,
-  },
-
-  rateLabel: { fontSize: 12, color: "#6b7280", marginBottom: 4 },
-
-  rateInput: {
-    width: "100%",
-    padding: "8px 12px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#2563eb",
-    outline: "none",
-  },
-
-  bigInput: {
-    flex: 1,
-    padding: "10px 14px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    fontSize: 16,
-    fontWeight: 700,
-    color: "#111",
-    outline: "none",
-    textAlign: "center" as const,
-  },
-
-  textarea: {
-    width: "100%",
-    padding: "10px 12px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    fontSize: 13,
-    color: "#374151",
-    resize: "vertical" as const,
-    outline: "none",
-    minHeight: 80,
-    fontFamily: "inherit",
-    boxSizing: "border-box" as const,
-  },
-
-  sendBtn: {
-    width: "100%",
-    padding: "12px 0",
-    border: "none",
-    borderRadius: 8,
-    background: "#1f2937",
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: "pointer",
-    marginBottom: 8,
-  },
-
-  closeModalBtn: {
-    width: "100%",
-    padding: "10px 0",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    background: "#fff",
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: "pointer",
-  },
-
-  // Right — load info
-  right: {
-    width: 280,
-    padding: "20px 20px",
-    overflowY: "auto" as const,
-    flexShrink: 0,
-    background: "#fafafa",
-  },
-
-  loadTitle: {
-    fontSize: 13,
-    fontWeight: 500,
-    color: "#111",
-    lineHeight: 1.5,
-    marginBottom: 8,
-  },
-
-  loadEmail: {
-    fontSize: 12,
-    color: "#2563eb",
-    wordBreak: "break-all" as const,
-    marginBottom: 14,
-    display: "block",
-  },
-
-  loadRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    fontSize: 12,
-    color: "#374151",
-    marginBottom: 5,
-  },
-
-  loadRowLabel: { color: "#9ca3af" },
-
-  brokerHighlight: {
-    background: "#fef9c3",
-    padding: "2px 6px",
-    borderRadius: 4,
-    fontSize: 12,
-    fontWeight: 500,
-    color: "#713f12",
-    wordBreak: "break-all" as const,
-  },
-};
+// ── Map preview (stylized SVG stand-in — wire to Mapbox/Google later) ──
+function MapPreview() {
+  return (
+    <svg
+      className={styles.mapPreview}
+      viewBox="0 0 340 90"
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <rect width="340" height="90" fill="#F4F2EC" />
+      <path
+        d="M30 64 C 110 14, 220 80, 310 28"
+        fill="none"
+        stroke="#1F5E3B"
+        strokeWidth="2"
+        strokeDasharray="5 5"
+        opacity="0.7"
+      />
+      <circle cx="30" cy="64" r="9" fill="#1F5E3B" opacity="0.18" />
+      <circle cx="30" cy="64" r="4" fill="#1F5E3B" />
+      <circle cx="310" cy="28" r="4" fill="#A6321D" />
+    </svg>
+  );
+}
 
 // ── BidModal ──────────────────────────────────────────────────────────────────
 
 export default function BidModal({ load, onClose, onSaved }: BidModalProps) {
-  const [selectedBidId, setSelectedBidId] = useState<string>(load.bids[0]?.id ?? "");
+  const [selectedBidId, setSelectedBidId] = useState<string>(
+    load.bids.find((b) => b.status === "accepted")?.id ?? load.bids[0]?.id ?? ""
+  );
 
-  const firstBid = load.bids[0];
+  const firstBid = load.bids.find((b) => b.id === selectedBidId) ?? load.bids[0];
   const [driverRate, setDriverRate] = useState<string>(
-    firstBid?.amount > 0 && firstBid?.status !== "skipped"
-      ? firstBid.amount.toString()
+    firstBid && firstBid.amount > 0 && firstBid.status !== "skipped"
+      ? String(firstBid.amount)
       : (load.driverRate?.toString() ?? "")
   );
   const [ourRate, setOurRate] = useState<string>(load.rate?.toString() ?? "");
+  const [appxMiles, setAppxMiles] = useState<string>(
+    firstBid?.driver.outMiles != null ? String(firstBid.driver.outMiles) : ""
+  );
+  const [padPct, setPadPct] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const selectedBid = load.bids.find((b) => b.id === selectedBidId) ?? load.bids[0];
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const restoreRef = useRef<Element | null>(null);
+
+  // Focus management + Esc to close.
+  useEffect(() => {
+    restoreRef.current = document.activeElement;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      (restoreRef.current as HTMLElement | null)?.focus?.();
+    };
+  }, [onClose]);
+
+  const selectedBid =
+    load.bids.find((b) => b.id === selectedBidId) ?? load.bids[0];
   const driver = selectedBid?.driver;
   const unit = driver?.unit;
-  const dims = unit?.dimensions as { length?: number; width?: number; height?: number } | null;
-  const equipment = unit?.equipment as string[] | null;
+  const dims = unit?.dimensions ?? null;
+  const equipment = unit?.equipment ?? null;
+  const loadDims = load.dimensions;
+
+  const selectDriver = (bid: Bid) => {
+    setSelectedBidId(bid.id);
+    if (bid.amount > 0 && bid.status !== "skipped")
+      setDriverRate(String(bid.amount));
+    if (bid.driver.outMiles != null) setAppxMiles(String(bid.driver.outMiles));
+  };
+
+  const handlePadChange = (v: string) => {
+    setPadPct(v);
+    const base = parseFloat(driverRate);
+    const pad = parseFloat(v);
+    if (!Number.isNaN(base) && !Number.isNaN(pad)) {
+      setOurRate(String(Math.round(base * (1 + pad / 100))));
+    }
+  };
 
   const handleCopyDriverInfo = useCallback(() => {
     if (!driver) return;
@@ -386,22 +215,25 @@ export default function BidModal({ load, onClose, onSaved }: BidModalProps) {
       driver.phone ? `Phone: ${driver.phone}` : null,
       driver.vehicleType ? `Vehicle: ${driver.vehicleType}` : null,
       unit ? `Unit: ${unit.unitNumber} (${unit.type})` : null,
-      dims ? `Dimensions: ${dims.length ?? 0}L x ${dims.width ?? 0}W x ${dims.height ?? 0}H` : null,
+      dims
+        ? `Dimensions: ${dims.length ?? 0}L x ${dims.width ?? 0}W x ${dims.height ?? 0}H`
+        : null,
       unit?.payload ? `Payload: ${unit.payload} lbs` : null,
       equipment?.length ? `Equipment: ${equipment.join(", ")}` : null,
       driver.citizenshipType ? `Citizenship: ${driver.citizenshipType}` : null,
-      driver.cleanBackground != null ? `Clean Background: ${driver.cleanBackground ? "Yes" : "No"}` : null,
       driver.currentZip ? `Current ZIP: ${driver.currentZip}` : null,
-      driver.address ? `Address: ${driver.address}` : null,
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
     copyToClipboard(lines);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [driver, unit, dims, equipment]);
 
   const handleCopyLocation = useCallback(() => {
-    if (!driver?.location) return;
-    copyToClipboard(`${driver.location.lat}, ${driver.location.lon}`);
+    if (driver?.location)
+      copyToClipboard(`${driver.location.lat}, ${driver.location.lon}`);
+    else if (driver?.currentZip) copyToClipboard(driver.currentZip);
   }, [driver]);
 
   const handleSend = async () => {
@@ -419,240 +251,343 @@ export default function BidModal({ load, onClose, onSaved }: BidModalProps) {
       }),
     });
     setSending(false);
-    if (res.ok) {
-      onSaved();
-    }
+    if (res.ok) onSaved();
   };
 
-  const loadDims = load.dimensions as { pieces?: number; L?: number; W?: number; H?: number } | null;
+  const totalLabel = ourRate ? ` · $${Number(ourRate).toLocaleString()}` : "";
+  const ttHours = load.miles != null ? Math.max(1, Math.round(load.miles / 50)) : null;
+  const recRate = load.driverRate ?? load.rate ?? null;
 
   return (
-    <div style={S.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div style={S.modal}>
-        {/* Header */}
-        <div style={{ ...S.header, position: "relative" }}>
-          <div style={S.headerTitle}>Place Your Bid</div>
-          <div style={S.headerSub}>Select a driver and place your bid for this load</div>
-          <button style={S.closeBtn} onClick={onClose}>×</button>
+    <div
+      className={styles.overlay}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Book your truck"
+      >
+        <div className={styles.modalHead}>
+          <div className={styles.modalTitle}>Book Your Truck</div>
+          <div className={styles.modalSub}>
+            Select a driver and place your bid for this load
+          </div>
+          <button ref={closeRef} className={styles.modalClose} onClick={onClose} aria-label="Close">
+            ×
+          </button>
         </div>
 
-        {/* Body */}
-        <div style={S.body}>
+        <div className={styles.modalBody}>
           {/* Left — driver list */}
-          <div style={S.left}>
+          <div className={styles.mDrivers}>
+            {load.bids.length === 0 && (
+              <div style={{ fontSize: 12.5, color: "var(--ink-4)", padding: 8 }}>
+                No drivers have responded yet.
+              </div>
+            )}
             {load.bids.map((bid) => {
               const active = bid.id === selectedBid?.id;
-              const unitLabel = bid.driver.unit ? `UNIT - ${bid.driver.unit.unitNumber}` : "No Unit";
+              const fav = load.status === "QUOTED" && bid.status === "accepted";
               return (
-                <div key={bid.id} style={S.driverCard(active)} onClick={() => {
-                  setSelectedBidId(bid.id);
-                  if (bid.amount > 0 && bid.status !== "skipped") setDriverRate(bid.amount.toString());
-                }}>
-                  <div style={S.driverCardName(active)}>{unitLabel} /</div>
-                  <div style={S.driverCardName(active)}>{bid.driver.name}</div>
-                  <div style={S.driverCardMeta(active)}>
-                    Miles out: {bid.driver.outMiles ?? "—"}
+                <button
+                  key={bid.id}
+                  className={`${styles.mDriverCard} ${active ? styles.mDriverActive : ""}`}
+                  onClick={() => selectDriver(bid)}
+                >
+                  {fav && (
+                    <span className={styles.cellStar} aria-hidden>
+                      ★
+                    </span>
+                  )}
+                  <div className={styles.driverTop}>
+                    <span className={styles.avatar} aria-hidden>
+                      {initials(bid.driver.name)}
+                    </span>
+                    <span className={styles.unitId}>{unitLabel(bid.driver)}</span>
                   </div>
-                  <div style={S.driverCardRate(active)}>
-                    Rate: {bidRateLabel(bid)}
+                  <div className={styles.driverName}>{bid.driver.name}</div>
+                  <div className={styles.driverBottom}>
+                    <span className={styles.milesOut}>
+                      <b>{bid.driver.outMiles ?? "—"}</b> mi out
+                    </span>
+                    <span className={styles.rate}>{rateText(bid)}</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
 
-          {/* Middle — driver detail + bid form */}
-          <div style={S.middle}>
+          {/* Middle — booking form */}
+          <div className={styles.mForm}>
             {driver ? (
               <>
-                {/* Meta row */}
-                <div style={S.row2}>
+                <div className={styles.infoCard}>
                   <div>
-                    <div style={S.metaLabel}>Last Updated</div>
-                    <div style={S.metaValue}>
-                      {driver.location ? timeAgo(driver.location.updatedAt) : "No data"}
+                    <div className={styles.fieldLabel}>Last updated</div>
+                    <div className={styles.fieldValue}>
+                      {driver.location ? timeAgo(driver.location.updatedAt) : "—"}
                     </div>
                   </div>
                   <div>
-                    <div style={S.metaLabel}>Phone</div>
-                    <div style={S.metaValue}>{driver.phone ?? "—"}</div>
-                  </div>
-                </div>
-
-                {/* Vehicle row */}
-                <div style={S.row2}>
-                  <div>
-                    <div style={S.metaLabel}>Truck</div>
-                    <div style={S.metaValue}>{driver.vehicleType ?? "—"}</div>
+                    <div className={styles.fieldLabel}>Phone</div>
+                    <div className={styles.fieldValue}>{driver.phone ?? "—"}</div>
                   </div>
                   <div>
-                    <div style={S.metaLabel}>Payload</div>
-                    <div style={S.metaValue}>{unit?.payload ? `${unit.payload} lbs` : "—"}</div>
-                  </div>
-                </div>
-
-                {dims && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={S.metaLabel}>Dims</div>
-                    <div style={S.metaValue}>
-                      {dims.length ?? 0} × {dims.width ?? 0} × {dims.height ?? 0}
+                    <div className={styles.fieldLabel}>Truck</div>
+                    <div className={styles.fieldValue}>
+                      {driver.vehicleType ?? "—"}
                     </div>
                   </div>
-                )}
+                  <div>
+                    <div className={styles.fieldLabel}>Dims</div>
+                    <div className={styles.fieldValue}>
+                      {dims
+                        ? `${dims.length ?? 0}×${dims.width ?? 0}×${dims.height ?? 0}`
+                        : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={styles.fieldLabel}>Payload</div>
+                    <div className={styles.fieldValue}>
+                      {unit?.payload ? `${unit.payload} lbs` : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={styles.fieldLabel}>Citizenship</div>
+                    <div className={styles.fieldValue}>
+                      {driver.citizenshipType ?? "—"}
+                    </div>
+                  </div>
+                </div>
 
-                {/* Copy buttons */}
-                <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                  <button style={S.copyBtn} onClick={handleCopyLocation}>
+                <div className={styles.pillRow}>
+                  <button className={styles.pillBtn} onClick={handleCopyLocation}>
                     Copy Location
                   </button>
-                  <button style={S.copyBtn} onClick={handleCopyDriverInfo}>
-                    {copied ? "Copied!" : "Copy Driver's Info"}
+                  <button className={styles.pillBtn} onClick={handleCopyDriverInfo}>
+                    {copied ? "Copied!" : "Copy Driver Info"}
                   </button>
                 </div>
 
-                <div style={S.divider} />
-
-                {/* Driver attributes */}
-                {driver.citizenshipType && (
-                  <div style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>
-                    Citizenship: {driver.citizenshipType}
+                <div className={styles.specs2}>
+                  <div className={styles.specRow}>
+                    <span>Clean Background</span>
+                    {driver.cleanBackground ? (
+                      <span className={styles.specYes}>✓ Yes</span>
+                    ) : (
+                      <span className={styles.specNo}>—</span>
+                    )}
                   </div>
-                )}
-                {driver.cleanBackground != null && (
-                  <div style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>
-                    Clean Background: {driver.cleanBackground ? "Yes" : "No"}
+                  {SPEC_CHECKS.map((s) => (
+                    <div key={s} className={styles.specRow}>
+                      <span>{s}</span>
+                      {hasEquip(equipment, s) ? (
+                        <span className={styles.specYes}>✓ Yes</span>
+                      ) : (
+                        <span className={styles.specNo}>—</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className={styles.bidLine3}>
+                  <div>
+                    <div className={styles.fieldLabel}>Unit</div>
+                    <span className={styles.unitPill}>{unitLabel(driver)}</span>
                   </div>
-                )}
-
-                {/* Equipment tags */}
-                {equipment && equipment.length > 0 && (
-                  <div style={{ marginTop: 8, marginBottom: 14 }}>
-                    {equipment.map((eq) => (
-                      <span key={eq} style={S.equipTag}>{eq}</span>
-                    ))}
+                  <div>
+                    <div className={styles.fieldLabel}>TT</div>
+                    <div className={styles.staticVal}>
+                      {ttHours ? `${ttHours}h` : "—"}
+                    </div>
                   </div>
-                )}
-
-                <div style={S.divider} />
-
-                {/* Unit badge + miles */}
-                {unit && (
-                  <span style={S.unitBadge}>
-                    UNIT — {unit.unitNumber} {driver.name.split(" ")[0]} {driver.name.split(" ").slice(-1)[0]?.[0]}.
-                  </span>
-                )}
-
-                <div style={{ display: "flex", gap: 20, marginBottom: 14, fontSize: 13, color: "#6b7280" }}>
-                  {driver.outMiles != null && (
-                    <span>Miles out: <strong style={{ color: "#111" }}>{driver.outMiles}</strong></span>
-                  )}
+                  <div>
+                    <div className={styles.fieldLabel}>Exact miles out</div>
+                    <div className={styles.staticVal}>
+                      {driver.outMiles ?? "—"}
+                    </div>
+                  </div>
                 </div>
 
-                <div style={S.divider} />
-
-                {/* Driver Rate */}
-                <div style={{ marginBottom: 12 }}>
-                  <div style={S.rateLabel}>Driver Rate</div>
-                  <input
-                    style={S.rateInput}
-                    type="number"
-                    value={driverRate}
-                    onChange={(e) => setDriverRate(e.target.value)}
-                    placeholder="0"
-                  />
+                <div className={styles.bidLine2}>
+                  <div>
+                    <div className={styles.fieldLabel}>Driver rate</div>
+                    <div className={styles.inputBox}>
+                      <span className={styles.inputPrefix}>$</span>
+                      <input
+                        type="number"
+                        value={driverRate}
+                        onChange={(e) => setDriverRate(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div className={styles.fieldLabel}>Bid to broker</div>
+                    <div className={styles.inputBox}>
+                      <span className={styles.inputPrefix}>$</span>
+                      <input
+                        type="number"
+                        value={ourRate}
+                        onChange={(e) => setOurRate(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Our Rate (bid to broker) */}
-                <div style={{ marginBottom: 12 }}>
-                  <div style={S.rateLabel}>Our Rate (quoted to broker)</div>
-                  <input
-                    style={{ ...S.bigInput, width: "100%", textAlign: "left" }}
-                    type="number"
-                    value={ourRate}
-                    onChange={(e) => setOurRate(e.target.value)}
-                    placeholder="0"
-                  />
+                <div className={styles.bidLine2}>
+                  <div>
+                    <div className={styles.fieldLabel}>Appx miles out</div>
+                    <div className={styles.inputBox}>
+                      <input
+                        type="number"
+                        value={appxMiles}
+                        onChange={(e) => setAppxMiles(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div className={styles.fieldLabel}>Pad %</div>
+                    <div className={styles.inputBox}>
+                      <input
+                        type="number"
+                        value={padPct}
+                        onChange={(e) => handlePadChange(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Notes */}
-                <div style={{ marginBottom: 14 }}>
-                  <div style={S.rateLabel}>Add notes for broker if needed</div>
-                  <textarea
-                    style={S.textarea}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder=""
-                  />
-                </div>
+                <textarea
+                  className={styles.textarea}
+                  placeholder="Add notes for broker if needed…"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
 
-                <button style={S.sendBtn} onClick={handleSend} disabled={sending}>
-                  {sending ? "Sending…" : "Send Bid!"}
+                <button
+                  className={styles.sendBtn}
+                  onClick={handleSend}
+                  disabled={sending}
+                >
+                  {sending ? "Sending…" : `Send Bid${totalLabel}`}
                 </button>
-                <button style={S.closeModalBtn} onClick={onClose}>Close</button>
               </>
             ) : (
-              <div style={{ color: "#9ca3af", fontSize: 14 }}>Select a driver on the left</div>
+              <div style={{ color: "var(--ink-4)", fontSize: 14 }}>
+                Select a driver on the left.
+              </div>
             )}
           </div>
 
-          {/* Right — load info */}
-          <div style={S.right}>
-            <div style={S.loadTitle}>
-              <strong>{load.vehicleRequired}</strong>
-              {" from "}
-              <strong>{load.pickupAddress}</strong>
-              {" to "}
-              <strong>{load.deliveryAddress}</strong>
-              {" — Posted by "}
-              <strong>{load.broker}</strong>
+          {/* Right — load detail */}
+          <div className={styles.mDetail}>
+            <div className={styles.heroCard}>
+              <div className={styles.heroSub}>{load.broker} Posted Load</div>
+              <div className={styles.heroText}>
+                <strong>{load.vehicleRequired}</strong> from {load.pickupAddress}{" "}
+                to {load.deliveryAddress}, posted by{" "}
+                <strong>{load.broker}</strong>
+                {load.brokerEmail && (
+                  <>
+                    {" "}
+                    <span className={styles.hl}>{load.brokerEmail}</span>
+                  </>
+                )}
+              </div>
             </div>
 
-            {load.brokerEmail && (
-              <a href={`mailto:${load.brokerEmail}`} style={S.loadEmail}>
-                ({load.brokerEmail})
-              </a>
-            )}
+            <MapPreview />
 
-            <div style={S.divider} />
-
-            <div style={{ marginBottom: 10, fontSize: 13, color: "#374151" }}>
-              <div>*Pick-up at: {load.pickupAddress}{load.pickupZip ? ` ${load.pickupZip}` : ""}*</div>
-              <div style={{ marginTop: 2 }}>*Pick-up date: {fmtDate(load.pickupDate)} EST*</div>
+            <div className={styles.detailSection}>
+              <div className={styles.sectionLabel}>Pickup</div>
+              <div className={styles.pair2}>
+                <div>
+                  <div className={styles.fieldLabel}>At</div>
+                  <div style={{ fontSize: 12.5 }}>{load.pickupAddress}</div>
+                </div>
+                <div>
+                  <div className={styles.fieldLabel}>Date</div>
+                  <div className={styles.staticVal} style={{ fontSize: 12.5 }}>
+                    {fmtDate(load.pickupDate)}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={{ marginBottom: 14, fontSize: 13, color: "#374151" }}>
-              <div>*Deliver to: {load.deliveryAddress}{load.deliveryZip ? ` ${load.deliveryZip}` : ""}*</div>
-              <div style={{ marginTop: 2 }}>*Delivery date: {fmtDate(load.deliveryDate)} EST*</div>
+
+            <div className={styles.detailSection}>
+              <div className={styles.sectionLabel}>Delivery</div>
+              <div className={styles.pair2}>
+                <div>
+                  <div className={styles.fieldLabel}>At</div>
+                  <div style={{ fontSize: 12.5 }}>{load.deliveryAddress}</div>
+                </div>
+                <div>
+                  <div className={styles.fieldLabel}>Date</div>
+                  <div className={styles.staticVal} style={{ fontSize: 12.5 }}>
+                    {fmtDate(load.deliveryDate)}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div style={S.divider} />
+            <div className={styles.divider} />
 
-            {[
-              ["Miles", load.miles],
-              ["Pieces", loadDims?.pieces ?? 0],
-              ["Weight", load.weight ? `${load.weight.toLocaleString()} lbs` : "—"],
-              ["Dims", loadDims?.L ? `${loadDims.L} × ${loadDims.W} × ${loadDims.H}` : "—"],
-              ["Stackable", load.stackable != null ? (load.stackable ? "Yes" : "No") : "—"],
-              ["Vehicle Required", load.vehicleRequired],
-            ].map(([label, val]) => (
-              <div key={String(label)} style={S.loadRow}>
-                <span style={S.loadRowLabel}>{label}:</span>
-                <span>{String(val ?? "—")}</span>
+            <div className={styles.sectionLabel}>Shipment</div>
+            {(
+              [
+                ["Miles", load.miles ?? "—"],
+                ["Pieces", loadDims?.pieces ?? "—"],
+                [
+                  "Weight",
+                  load.weight ? `${load.weight.toLocaleString()} lbs` : "—",
+                ],
+                [
+                  "Dims",
+                  loadDims?.L
+                    ? `${loadDims.L}×${loadDims.W}×${loadDims.H}`
+                    : "—",
+                ],
+                ["Suggested truck", load.vehicleRequired ?? "—"],
+              ] as Array<[string, string | number]>
+            ).map(([lbl, val]) => (
+              <div key={lbl} className={styles.detailRow}>
+                <span className={styles.lbl}>{lbl}</span>
+                <span className={styles.valMono}>{val}</span>
               </div>
             ))}
+            <div className={styles.detailRow}>
+              <span className={styles.lbl}>Recommended rate</span>
+              <span className={styles.recRate}>
+                {recRate != null ? `$${recRate.toLocaleString()}` : "—"}
+              </span>
+            </div>
 
-            <div style={S.divider} />
+            <div className={styles.divider} />
 
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ ...S.metaLabel, marginBottom: 4 }}>Load ID</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#111" }}>
+            <div className={styles.sectionLabel}>Reference</div>
+            <div className={styles.detailRow}>
+              <span className={styles.lbl}>Load ID</span>
+              <span className={styles.valMono}>
                 {load.brokerReference ?? `#${load.loadNumber}`}
+              </span>
+            </div>
+            {load.brokerEmail && (
+              <div className={styles.detailRow}>
+                <span className={styles.lbl}>Broker email</span>
+                <a
+                  className={styles.brokerEmail}
+                  href={`mailto:${load.brokerEmail}`}
+                >
+                  {load.brokerEmail}
+                </a>
               </div>
-            </div>
-
-            <div>
-              <div style={{ ...S.metaLabel, marginBottom: 4 }}>Broker</div>
-              <span style={S.brokerHighlight}>{load.brokerEmail ?? load.broker}</span>
-            </div>
+            )}
           </div>
         </div>
       </div>

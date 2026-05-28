@@ -18,7 +18,11 @@
       "Bash(npm test *)",
       "Bash(git mv *)",
       "Bash(git commit *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(awk '/<\\\\/style>/{exit} found; /<style>/{found=1}' \"Active Loads.html\")",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(npx vitest *)"
     ],
     "additionalDirectories": [
       "/Users/pip/Downloads/pipotrack/pipotrack/src/app/api/loads",

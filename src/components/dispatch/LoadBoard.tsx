@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import BidModal, { type DispatchLoad, type Bid } from "./BidModal";
+import styles from "./tendered.module.css";
 
-type Tab = "all" | "new" | "quoted";
+type Tab = "all" | "new" | "quoted" | "archived";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -15,284 +16,343 @@ function timeAgo(iso: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function bidRateLabel(bid: Bid): { text: string; color: string } {
-  if (bid.status === "sent")    return { text: "Waiting…", color: "#f59e0b" };
-  if (bid.status === "skipped") return { text: "Skipped",  color: "#6b7280" };
-  if (bid.amount > 0)           return { text: `$${bid.amount}`, color: "#2563eb" };
-  return { text: "N/A", color: "#9ca3af" };
+function fmtMins(mins: number): string {
+  if (mins < 60) return `${Math.round(mins)}m`;
+  return `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
-const S = {
-  page: {
-    padding: "0 32px 40px",
-    fontFamily: "inherit",
-  } as React.CSSProperties,
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
 
-  tabBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 24,
-  } as React.CSSProperties,
+function unitLabel(driver: Bid["driver"]): string {
+  return driver.unit ? `UNIT-${driver.unit.unitNumber}` : "NO-UNIT";
+}
 
-  tabActive: {
-    padding: "6px 14px",
-    borderRadius: 20,
-    background: "#111",
-    color: "#fff",
-    fontSize: 13.5,
-    fontWeight: 600,
-    border: "none",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  } as React.CSSProperties,
+// US 2-letter state code if present in the address string.
+function stateOf(address: string | null): string | null {
+  if (!address) return null;
+  const m = address.match(/\b([A-Z]{2})\b(?:\s+\d{5})?/);
+  return m ? m[1] : null;
+}
 
-  tabInactive: {
-    padding: "6px 14px",
-    borderRadius: 20,
-    background: "transparent",
-    color: "#374151",
-    fontSize: 13.5,
-    fontWeight: 500,
-    border: "1px solid #e5e7eb",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-  } as React.CSSProperties,
+type RateKind = "priced" | "wait" | "skipped" | "na";
+function rateKind(bid: Bid): RateKind {
+  if (bid.status === "skipped") return "skipped";
+  if (bid.status === "sent" && bid.amount <= 0) return "wait";
+  if (bid.amount > 0) return "priced";
+  return "na";
+}
 
-  badge: {
-    background: "#ef4444",
-    color: "#fff",
-    borderRadius: 10,
-    fontSize: 11,
-    fontWeight: 700,
-    padding: "1px 6px",
-    lineHeight: "16px",
-  } as React.CSSProperties,
+function isDriverBid(bid: Bid): boolean {
+  return bid.amount > 0 && bid.status !== "skipped";
+}
 
-  searchWrap: {
-    marginLeft: "auto",
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  } as React.CSSProperties,
+// ── Driver cell ────────────────────────────────────────────────────────────────
 
-  searchInput: {
-    height: 34,
-    padding: "0 12px 0 32px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    fontSize: 13,
-    outline: "none",
-    width: 220,
-    color: "#374151",
-    background: "#fff",
-  } as React.CSSProperties,
+function DriverCell({
+  bid,
+  loadStatus,
+}: {
+  bid: Bid;
+  loadStatus: DispatchLoad["status"];
+}) {
+  // green fill = the driver the dispatcher quoted (only once the load is QUOTED);
+  // green border = any driver who submitted a real bid amount.
+  const assigned = loadStatus === "QUOTED" && bid.status === "accepted";
+  const bidded = isDriverBid(bid) && !assigned;
+  const kind = rateKind(bid);
 
-  archiveBtn: {
-    height: 34,
-    padding: "0 16px",
-    background: "#2563eb",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-  } as React.CSSProperties,
+  const cls = [
+    styles.driverCell,
+    assigned ? styles.driverAssigned : "",
+    bidded ? styles.driverBid : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  card: {
-    display: "flex",
-    gap: 0,
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    background: "#fff",
-    marginBottom: 14,
-    overflow: "hidden",
-  } as React.CSSProperties,
+  return (
+    <div className={cls}>
+      {bidded && <span className={styles.cellTag}>BID</span>}
+      {assigned && <span className={styles.cellStar} aria-hidden>★</span>}
 
-  cardLeft: {
-    minWidth: 260,
-    maxWidth: 280,
-    padding: "18px 20px",
-    borderRight: "1px solid #f0f0f0",
-    flexShrink: 0,
-  } as React.CSSProperties,
+      <div className={styles.driverTop}>
+        <span className={styles.avatar} aria-hidden>
+          {initials(bid.driver.name)}
+        </span>
+        <span className={styles.unitId}>{unitLabel(bid.driver)}</span>
+      </div>
 
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: 500,
-    color: "#111",
-    lineHeight: 1.45,
-    marginBottom: 6,
-  } as React.CSSProperties,
+      <div className={styles.driverName}>{bid.driver.name}</div>
 
-  brokerEmail: {
-    fontSize: 12,
-    color: "#2563eb",
-    textDecoration: "none",
-    display: "block",
-    marginBottom: 10,
-    wordBreak: "break-all" as const,
-  } as React.CSSProperties,
+      <div className={styles.driverBottom}>
+        <span className={styles.milesOut}>
+          <b>{bid.driver.outMiles ?? "—"}</b> mi out
+        </span>
+        {kind === "priced" && <span className={styles.rate}>${bid.amount}</span>}
+        {kind === "wait" && (
+          <span className={`${styles.rate} ${styles.rateWait}`}>Waiting</span>
+        )}
+        {kind === "na" && (
+          <span className={`${styles.rate} ${styles.rateNa}`}>N/A</span>
+        )}
+        {kind === "skipped" && (
+          <span className={styles.rateSkip}>Rate: skipped</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
-  cardMeta: {
-    fontSize: 11.5,
-    color: "#9ca3af",
-    display: "flex",
-    justifyContent: "space-between",
-    marginTop: "auto",
-  } as React.CSSProperties,
+// ── Action column ──────────────────────────────────────────────────────────────
 
-  driverGrid: {
-    flex: 1,
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 1,
-    background: "#f0f0f0",
-    alignContent: "start",
-  } as React.CSSProperties,
+function ActionColumn({
+  load,
+  archived,
+  onBid,
+  onBook,
+  onHide,
+  onUnhide,
+}: {
+  load: DispatchLoad;
+  archived: boolean;
+  onBid: (l: DispatchLoad) => void;
+  onBook: (l: DispatchLoad) => void;
+  onHide: (id: string) => void;
+  onUnhide: (id: string) => void;
+}) {
+  const [held, setHeld] = useState(false);
+  const [holding, setHolding] = useState(false);
 
-  driverCell: {
-    background: "#fff",
-    padding: "12px 14px",
-    fontSize: 12,
-  } as React.CSSProperties,
+  if (archived) {
+    return (
+      <div className={styles.actionCol}>
+        <button
+          className={`${styles.bigBtn} ${styles.btnGhost}`}
+          onClick={() => onUnhide(load.id)}
+        >
+          Unhide
+        </button>
+        <span style={{ textAlign: "center", fontSize: 11, color: "var(--ink-4)" }}>
+          Archived
+        </span>
+      </div>
+    );
+  }
 
-  driverName: {
-    fontWeight: 600,
-    color: "#111",
-    marginBottom: 4,
-    fontSize: 12,
-    lineHeight: 1.3,
-  } as React.CSSProperties,
+  if (load.status === "QUOTED") {
+    const accepted = load.bids.find((b) => b.status === "accepted");
+    const handleHold = async () => {
+      setHolding(true);
+      await fetch(`/api/dispatch/loads/${load.id}/hold`, { method: "POST" }).catch(
+        () => {}
+      );
+      setHolding(false);
+      setHeld(true);
+    };
+    return (
+      <div className={styles.actionCol}>
+        <div className={styles.bidSummary}>
+          <div className={styles.bidSummaryAmt}>
+            Your bid · <b>${load.rate?.toLocaleString() ?? "—"}</b>
+          </div>
+          <div className={styles.bidSummaryUnit}>
+            {accepted ? unitLabel(accepted.driver) : "—"}
+          </div>
+          {accepted && (
+            <div className={styles.bidSummaryTime}>
+              <span className={styles.liveDot} aria-hidden />
+              bidded {timeAgo(accepted.createdAt)}
+            </div>
+          )}
+        </div>
+        <button
+          className={`${styles.bigBtn} ${styles.btnBook}`}
+          onClick={() => onBook(load)}
+        >
+          Book
+        </button>
+        <div className={styles.twoUp}>
+          <button
+            className={styles.smBtn}
+            onClick={handleHold}
+            disabled={holding}
+          >
+            {holding ? "…" : held ? "Held ✓" : "Hold"}
+          </button>
+          <button className={styles.smBtn} onClick={() => onHide(load.id)}>
+            Archive
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  driverMeta: {
-    color: "#6b7280",
-    fontSize: 11.5,
-    marginBottom: 3,
-  } as React.CSSProperties,
+  // new / pending-distribution
+  const hasCandidates = load.bids.length > 0;
+  return (
+    <div className={styles.actionCol}>
+      <button
+        className={`${styles.bigBtn} ${styles.btnBid}`}
+        onClick={() => onBid(load)}
+        disabled={!hasCandidates}
+        title={hasCandidates ? "" : "No drivers have responded yet"}
+        style={!hasCandidates ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+      >
+        Place bid
+      </button>
+      <button
+        className={`${styles.bigBtn} ${styles.btnDanger}`}
+        onClick={() => onHide(load.id)}
+      >
+        Hide
+      </button>
+    </div>
+  );
+}
 
-  hideBtn: {
-    flexShrink: 0,
-    padding: "0 20px",
-    background: "#dc2626",
-    color: "#fff",
-    border: "none",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 90,
-  } as React.CSSProperties,
+// ── Load card ──────────────────────────────────────────────────────────────────
 
-  quotedPanel: {
-    flexShrink: 0,
-    width: 140,
-    borderLeft: "1px solid #f0f0f0",
-    display: "flex",
-    flexDirection: "column",
-    padding: "16px 14px",
-    gap: 8,
-    justifyContent: "center",
-  } as React.CSSProperties,
+function LoadCard({
+  load,
+  archived,
+  onBid,
+  onBook,
+  onHide,
+  onUnhide,
+}: {
+  load: DispatchLoad;
+  archived: boolean;
+  onBid: (l: DispatchLoad) => void;
+  onBook: (l: DispatchLoad) => void;
+  onHide: (id: string) => void;
+  onUnhide: (id: string) => void;
+}) {
+  const dims = load.dimensions;
+  const fromState = stateOf(load.pickupAddress);
+  const toState = stateOf(load.deliveryAddress);
 
-  quotedPanelUnit: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: "#111",
-    marginBottom: 2,
-    lineHeight: 1.3,
-  } as React.CSSProperties,
+  const tags: Array<{ label: string; cls: string }> = [];
+  if (load.miles != null && load.miles <= 150)
+    tags.push({ label: "Local", cls: "" });
+  if (load.miles != null && load.miles >= 500)
+    tags.push({ label: "Long haul", cls: "" });
+  if (load.stackable) tags.push({ label: "Stackable", cls: styles.tagExp });
 
-  quotedPanelSub: {
-    fontSize: 11,
-    color: "#9ca3af",
-    marginBottom: 8,
-  } as React.CSSProperties,
+  const idLabel = load.brokerReference ?? `#${load.loadNumber}`;
+  const ariaLabel = `Tender ${idLabel} from ${fromState ?? ""} ${
+    load.pickupZip ?? ""
+  } to ${toState ?? ""} ${load.deliveryZip ?? ""}, posted ${timeAgo(
+    load.createdAt
+  )}`;
 
-  btnBook: {
-    padding: "8px 0",
-    borderRadius: 8,
-    border: "none",
-    background: "#16a34a",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-  } as React.CSSProperties,
+  return (
+    <article className={styles.card} aria-label={ariaLabel}>
+      {/* Left — meta */}
+      <div className={styles.meta}>
+        <div className={styles.routeLine}>
+          <span className={styles.routeDot} aria-hidden />
+          <span>
+            {fromState && <span className={styles.st}>{fromState}</span>}
+            <span className={styles.zip}>{load.pickupZip ?? "—"}</span>
+          </span>
+          <span className={styles.arrow} aria-hidden>
+            →
+          </span>
+          <span>
+            {toState && <span className={styles.st}>{toState}</span>}
+            <span className={styles.zip}>{load.deliveryZip ?? "—"}</span>
+          </span>
+        </div>
 
-  btnHold: {
-    padding: "8px 0",
-    borderRadius: 8,
-    border: "none",
-    background: "#f97316",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-  } as React.CSSProperties,
+        <div className={styles.desc}>
+          <strong>{load.vehicleRequired ?? "Unknown"}</strong>
+          {load.miles != null && (
+            <>
+              {" · "}
+              <strong>{load.miles} mi</strong>
+            </>
+          )}
+          {load.weight != null && (
+            <>
+              {" · "}
+              <strong>{load.weight.toLocaleString()} lbs</strong>
+            </>
+          )}
+          {dims?.pieces ? ` · ${dims.pieces} pcs` : ""}
+        </div>
 
-  btnArchive: {
-    padding: "8px 0",
-    borderRadius: 8,
-    border: "none",
-    background: "#374151",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-  } as React.CSSProperties,
+        {tags.length > 0 && (
+          <div className={styles.tags}>
+            {tags.map((t) => (
+              <span key={t.label} className={`${styles.tag} ${t.cls}`}>
+                {t.label}
+              </span>
+            ))}
+          </div>
+        )}
 
-  // Book confirm modal
-  overlay: {
-    position: "fixed" as const,
-    inset: 0,
-    background: "rgba(0,0,0,0.45)",
-    zIndex: 60,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+        <div className={styles.brokerBlock}>
+          <div className={styles.brokerLabel}>Posted by {load.broker}</div>
+          {load.brokerEmail && (
+            <a className={styles.brokerEmail} href={`mailto:${load.brokerEmail}`}>
+              {load.brokerEmail}
+            </a>
+          )}
+        </div>
 
-  confirmBox: {
-    background: "#fff",
-    borderRadius: 14,
-    padding: "28px 28px 24px",
-    width: 400,
-    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-  } as React.CSSProperties,
+        <div className={styles.footerStamp}>
+          <span>
+            <span className={styles.liveDot} aria-hidden />
+            Posted {timeAgo(load.createdAt)}
+          </span>
+          <span className={styles.idStamp}>ID {idLabel}</span>
+        </div>
+      </div>
 
-  empty: {
-    textAlign: "center" as const,
-    padding: "60px 0",
-    color: "#9ca3af",
-    fontSize: 14,
-  } as React.CSSProperties,
+      {/* Middle — driver grid */}
+      <div className={styles.driverArea}>
+        <div className={styles.driverGrid}>
+          {load.bids.length === 0 ? (
+            <div className={styles.driverEmpty}>No drivers sent yet</div>
+          ) : (
+            load.bids.map((bid) => (
+              <DriverCell
+                key={`${load.id}-${bid.id}`}
+                bid={bid}
+                loadStatus={load.status}
+              />
+            ))
+          )}
+        </div>
+      </div>
 
-  quotedRate: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 6,
-    background: "#f0fdf4",
-    border: "1px solid #bbf7d0",
-    borderRadius: 6,
-    padding: "3px 8px",
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#16a34a",
-  } as React.CSSProperties,
-};
+      {/* Right — actions */}
+      <ActionColumn
+        load={load}
+        archived={archived}
+        onBid={onBid}
+        onBook={onBook}
+        onHide={onHide}
+        onUnhide={onUnhide}
+      />
+    </article>
+  );
+}
 
-// ── BookConfirmModal ──────────────────────────────────────────────────────────
+// ── Book confirm modal ──────────────────────────────────────────────────────────
 
 function BookConfirmModal({
   load,
@@ -307,80 +367,53 @@ function BookConfirmModal({
 }) {
   const accepted = load.bids.find((b) => b.status === "accepted");
   const driver = accepted?.driver;
-  const unitLabel = driver?.unit ? `UNIT-${driver.unit.unitNumber}` : "No Unit";
 
   return (
-    <div style={S.overlay} onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div style={S.confirmBox}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "#111", marginBottom: 6 }}>
-          Book this load?
-        </div>
-        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 18, lineHeight: 1.6 }}>
-          Load <strong>{load.brokerReference ?? `#${load.loadNumber}`}</strong> will be sent to
-          Operations with status <strong>Pending</strong>.
-        </div>
-
-        <div
-          style={{
-            background: "#f9fafb",
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            padding: "14px 16px",
-            marginBottom: 20,
-            fontSize: 13,
-          }}
-        >
-          <div style={{ fontWeight: 600, color: "#111", marginBottom: 4 }}>
-            {load.vehicleRequired} · {load.pickupZip ?? load.pickupAddress} → {load.deliveryZip ?? load.deliveryAddress}
+    <div
+      className={styles.overlay}
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className={styles.modal} style={{ maxWidth: 420 }}>
+        <div className={styles.modalHead}>
+          <div className={styles.modalTitle}>Book this load?</div>
+          <div className={styles.modalSub}>
+            Load {load.brokerReference ?? `#${load.loadNumber}`} moves to
+            Operations with status Pending.
           </div>
-          {driver && (
-            <div style={{ color: "#6b7280" }}>
-              {unitLabel} / {driver.name}
-            </div>
-          )}
-          {load.rate != null && (
-            <div style={{ color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
-              Rate: ${load.rate.toLocaleString()}
-            </div>
-          )}
-          {load.driverRate != null && (
-            <div style={{ color: "#6b7280" }}>
-              Driver rate: ${load.driverRate.toLocaleString()}
-            </div>
-          )}
+          <button className={styles.modalClose} onClick={onCancel}>
+            ×
+          </button>
         </div>
-
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ padding: "18px 22px 22px" }}>
+          <div className={styles.heroCard}>
+            <div className={styles.heroText}>
+              <strong>{load.vehicleRequired}</strong> ·{" "}
+              {load.pickupZip ?? load.pickupAddress} →{" "}
+              {load.deliveryZip ?? load.deliveryAddress}
+            </div>
+            {driver && (
+              <div className={styles.bidSummaryUnit}>
+                {unitLabel(driver)} / {driver.name}
+              </div>
+            )}
+            {load.rate != null && (
+              <div style={{ marginTop: 6 }}>
+                <span className={styles.recRate}>
+                  ${load.rate.toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
           <button
-            style={{
-              flex: 1,
-              padding: "11px 0",
-              borderRadius: 8,
-              border: "none",
-              background: "#16a34a",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: booking ? "not-allowed" : "pointer",
-              opacity: booking ? 0.7 : 1,
-            }}
+            className={styles.sendBtn}
             onClick={onConfirm}
             disabled={booking}
+            style={{ marginBottom: 8 }}
           >
-            {booking ? "Booking…" : "Confirm Book"}
+            {booking ? "Booking…" : "Confirm booking"}
           </button>
           <button
-            style={{
-              flex: 1,
-              padding: "11px 0",
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#fff",
-              color: "#374151",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
+            className={`${styles.bigBtn} ${styles.btnGhost}`}
             onClick={onCancel}
             disabled={booking}
           >
@@ -392,159 +425,10 @@ function BookConfirmModal({
   );
 }
 
-// ── QuotedPanel ───────────────────────────────────────────────────────────────
-
-function QuotedPanel({
-  load,
-  onBook,
-  onArchive,
-}: {
-  load: DispatchLoad;
-  onBook: () => void;
-  onArchive: () => void;
-}) {
-  const [holding, setHolding] = useState(false);
-  const [held, setHeld] = useState(false);
-
-  const accepted = load.bids.find((b) => b.status === "accepted");
-  const driver = accepted?.driver;
-  const unitLabel = driver?.unit ? `UNIT-${driver.unit.unitNumber}` : "—";
-
-  const handleHold = async () => {
-    setHolding(true);
-    await fetch(`/api/dispatch/loads/${load.id}/hold`, { method: "POST" });
-    setHolding(false);
-    setHeld(true);
-  };
-
-  return (
-    <div style={S.quotedPanel}>
-      <div style={S.quotedPanelUnit}>{unitLabel}</div>
-      {driver && <div style={{ ...S.quotedPanelUnit, fontWeight: 400, fontSize: 11 }}>{driver.name}</div>}
-      {accepted && (
-        <div style={S.quotedPanelSub}>Bidded {timeAgo(accepted.createdAt)}</div>
-      )}
-      <button style={S.btnBook} onClick={onBook}>Book</button>
-      <button
-        style={{ ...S.btnHold, opacity: holding ? 0.7 : 1, cursor: holding ? "not-allowed" : "pointer" }}
-        onClick={handleHold}
-        disabled={holding}
-      >
-        {holding ? "Sending…" : held ? "Held ✓" : "Hold"}
-      </button>
-      <button style={S.btnArchive} onClick={onArchive}>Archive</button>
-    </div>
-  );
-}
-
-// ── LoadCard ──────────────────────────────────────────────────────────────────
-
-function LoadCard({
-  load,
-  onHide,
-  onOpen,
-  onBook,
-}: {
-  load: DispatchLoad;
-  onHide: (id: string) => void;
-  onOpen: (load: DispatchLoad) => void;
-  onBook: (load: DispatchLoad) => void;
-}) {
-  const dims = load.dimensions as { pieces?: number; L?: number; W?: number; H?: number } | null;
-
-  const subtitle = [
-    load.miles ? `${load.miles} miles` : null,
-    load.weight ? `${load.weight.toLocaleString()} lbs.` : null,
-    dims?.pieces ? `${dims.pieces} pcs` : null,
-    dims?.L && dims?.W && dims?.H ? `${dims.L}L×${dims.W}W×${dims.H}H` : null,
-    `Posted by ${load.broker}`,
-  ]
-    .filter(Boolean)
-    .join(" - ");
-
-  const isQuoted = load.status === "QUOTED";
-
-  return (
-    <div style={S.card}>
-      {/* Left — load info (clickable) */}
-      <div
-        style={{ ...S.cardLeft, display: "flex", flexDirection: "column", cursor: "pointer" }}
-        onClick={() => onOpen(load)}
-      >
-        <div style={S.cardTitle}>
-          <strong>{load.vehicleRequired ?? "UNKNOWN"}</strong>
-          {" from "}
-          <strong>{load.pickupZip ?? load.pickupAddress}</strong>
-          {" to "}
-          <strong>{load.deliveryZip ?? load.deliveryAddress}</strong>
-          {" — "}
-          {subtitle}
-        </div>
-
-        {load.brokerEmail && (
-          <a href={`mailto:${load.brokerEmail}`} style={S.brokerEmail}>
-            {load.brokerEmail}
-          </a>
-        )}
-
-        {isQuoted && load.rate && (
-          <span style={S.quotedRate}>✓ Quoted: ${load.rate.toLocaleString()}</span>
-        )}
-
-        <div style={{ ...S.cardMeta, marginTop: 12 }}>
-          <span>{timeAgo(load.createdAt)}</span>
-          <span>ID: {load.brokerReference ?? load.loadNumber}</span>
-        </div>
-      </div>
-
-      {/* Driver grid */}
-      <div style={S.driverGrid}>
-        {load.bids.length === 0 ? (
-          <div style={{ ...S.driverCell, gridColumn: "1 / -1", color: "#9ca3af", fontSize: 13 }}>
-            No drivers sent yet
-          </div>
-        ) : (
-          load.bids.map((bid) => {
-            const rate = bidRateLabel(bid);
-            const unitLabel = bid.driver.unit
-              ? `UNIT-${bid.driver.unit.unitNumber}`
-              : "No Unit";
-            return (
-              <div key={bid.id} style={S.driverCell}>
-                <div style={S.driverName}>
-                  {unitLabel} / {bid.driver.name}
-                </div>
-                {bid.driver.outMiles != null && (
-                  <div style={S.driverMeta}>Miles out: {bid.driver.outMiles}</div>
-                )}
-                <div style={{ ...S.driverMeta, color: rate.color, fontWeight: 500 }}>
-                  Rate: {rate.text}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* Right action: Quoted panel or Hide button */}
-      {isQuoted ? (
-        <QuotedPanel
-          load={load}
-          onBook={() => onBook(load)}
-          onArchive={() => onHide(load.id)}
-        />
-      ) : (
-        <button style={S.hideBtn} onClick={() => onHide(load.id)}>
-          Hide
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── LoadBoard ─────────────────────────────────────────────────────────────────
+// ── Board ──────────────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL_MS = 30_000;
+const isDev = process.env.NODE_ENV === "development";
 
 export default function LoadBoard() {
   const [loads, setLoads] = useState<DispatchLoad[]>([]);
@@ -556,6 +440,7 @@ export default function LoadBoard() {
   const [modalLoad, setModalLoad] = useState<DispatchLoad | null>(null);
   const [bookingLoad, setBookingLoad] = useState<DispatchLoad | null>(null);
   const [booking, setBooking] = useState(false);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   const fetchLoads = useCallback((silent = false) => {
     if (!silent) setLoading(true);
@@ -570,32 +455,34 @@ export default function LoadBoard() {
   }, []);
 
   useEffect(() => {
-    // Standard fetch-on-mount + interval poll. React 19's strict rule wants
-    // this expressed via React Query (already a project dep) or moved out of
-    // an effect. TODO: migrate this component to useQuery in a follow-up
-    // refactor — the call surface is small enough to swap cleanly.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLoads();
-
     const interval = setInterval(() => fetchLoads(true), POLL_INTERVAL_MS);
-
     const handleVisibility = () => {
       if (!document.hidden) fetchLoads(true);
     };
     document.addEventListener("visibilitychange", handleVisibility);
-
     return () => {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [fetchLoads]);
 
-  const handleHide = (id: string) => setHidden((prev) => new Set([...prev, id]));
+  const handleHide = (id: string) =>
+    setHidden((prev) => new Set([...prev, id]));
+  const handleUnhide = (id: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
   const handleConfirmBook = async () => {
     if (!bookingLoad) return;
     setBooking(true);
-    const res = await fetch(`/api/dispatch/loads/${bookingLoad.id}/book`, { method: "POST" });
+    const res = await fetch(`/api/dispatch/loads/${bookingLoad.id}/book`, {
+      method: "POST",
+    });
     setBooking(false);
     if (res.ok) {
       setBookingLoad(null);
@@ -603,32 +490,106 @@ export default function LoadBoard() {
     }
   };
 
-  const visible = loads.filter((l) => {
-    if (hidden.has(l.id)) return false;
-    if (tab === "all"    && l.status !== "PENDING_DISTRIBUTION") return false;
-    if (tab === "new"    && l.status !== "HAS_BIDS") return false;
-    if (tab === "quoted" && l.status !== "QUOTED") return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const ref = (l.brokerReference ?? "").toLowerCase();
-      const broker = l.broker.toLowerCase();
-      if (!ref.includes(q) && !broker.includes(q)) return false;
+  const matchesSearch = (l: DispatchLoad): boolean => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    const hay = [
+      l.brokerReference,
+      String(l.loadNumber),
+      l.broker,
+      l.brokerEmail,
+      l.pickupZip,
+      l.deliveryZip,
+      ...l.bids.flatMap((b) => [
+        b.driver.name,
+        b.driver.unit ? `UNIT-${b.driver.unit.unitNumber}` : null,
+      ]),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  };
+
+  // Tabs are pipeline stages: All = distributed to drivers (no driver bid yet),
+  // New = a driver has bid, Quoted = dispatcher has quoted the broker.
+  const notHidden = loads.filter((l) => !hidden.has(l.id));
+  const pendingCount = notHidden.filter(
+    (l) => l.status === "PENDING_DISTRIBUTION"
+  ).length;
+  const newCount = notHidden.filter((l) => l.status === "HAS_BIDS").length;
+  const quotedCount = notHidden.filter((l) => l.status === "QUOTED").length;
+  const totalCount = notHidden.length;
+  const archivedCount = hidden.size;
+
+  const visible = (() => {
+    if (tab === "archived")
+      return loads.filter((l) => hidden.has(l.id) && matchesSearch(l));
+    const base = notHidden.filter(matchesSearch);
+    if (tab === "all")
+      return base.filter((l) => l.status === "PENDING_DISTRIBUTION");
+    if (tab === "new") return base.filter((l) => l.status === "HAS_BIDS");
+    if (tab === "quoted") return base.filter((l) => l.status === "QUOTED");
+    return base;
+  })();
+
+  // ── Dynamic subtitle + KPI aggregates ──
+  const brokerCount = new Set(notHidden.map((l) => l.broker)).size;
+  const earliest = notHidden.reduce<string | null>(
+    (acc, l) => (!acc || l.createdAt < acc ? l.createdAt : acc),
+    null
+  );
+  const ttbSamples = notHidden
+    .map((l) => {
+      const firstReal = l.bids.find(isDriverBid);
+      if (!firstReal) return null;
+      return (
+        (new Date(firstReal.createdAt).getTime() -
+          new Date(l.createdAt).getTime()) /
+        60000
+      );
+    })
+    .filter((n): n is number => n != null && n >= 0);
+  const avgTtb = ttbSamples.length
+    ? fmtMins(ttbSamples.reduce((a, b) => a + b, 0) / ttbSamples.length)
+    : "—";
+  const topLoad = notHidden.reduce<DispatchLoad | null>((acc, l) => {
+    const r = l.rate ?? 0;
+    return r > (acc?.rate ?? 0) ? l : acc;
+  }, null);
+
+  const uniqueDrivers = new Set(
+    notHidden.flatMap((l) => l.bids.map((b) => b.driverId))
+  ).size;
+  const premiumPool = notHidden
+    .filter((l) => l.status === "QUOTED")
+    .reduce((sum, l) => sum + (l.rate ?? 0), 0);
+
+  const tabBtn = (t: Tab) =>
+    `${styles.tab} ${tab === t ? styles.tabActive : ""}`;
+
+  const onTabKey = (e: React.KeyboardEvent) => {
+    const order: Tab[] = ["all", "new", "quoted", "archived"];
+    const i = order.indexOf(tab);
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setTab(order[(i + 1) % order.length]);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      setTab(order[(i - 1 + order.length) % order.length]);
     }
-    return true;
-  });
-
-  const newCount    = loads.filter((l) => !hidden.has(l.id) && l.status === "HAS_BIDS").length;
-  const quotedCount = loads.filter((l) => !hidden.has(l.id) && l.status === "QUOTED").length;
-
-  const tabStyle = (t: Tab) => (tab === t ? S.tabActive : S.tabInactive);
+  };
 
   return (
-    <div style={S.page}>
+    <div className={styles.board}>
       {modalLoad && (
         <BidModal
           load={modalLoad}
           onClose={() => setModalLoad(null)}
-          onSaved={() => { setModalLoad(null); fetchLoads(); }}
+          onSaved={() => {
+            setModalLoad(null);
+            fetchLoads();
+          }}
         />
       )}
       {bookingLoad && (
@@ -640,55 +601,181 @@ export default function LoadBoard() {
         />
       )}
 
-      {/* Tab bar */}
-      <div style={S.tabBar}>
-        <button style={tabStyle("all")} onClick={() => setTab("all")}>All</button>
-
-        <button style={tabStyle("new")} onClick={() => setTab("new")}>
-          New
-          {newCount > 0 && <span style={S.badge}>{newCount}</span>}
-        </button>
-
-        <button style={tabStyle("quoted")} onClick={() => setTab("quoted")}>
-          Quoted
-          {quotedCount > 0 && <span style={S.badge}>{quotedCount}</span>}
-        </button>
-
-        <div style={S.searchWrap}>
-          <div style={{ position: "relative" }}>
-            <svg
-              style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", opacity: 0.4 }}
-              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              style={S.searchInput}
-              placeholder="Search ID/SUBJECT"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      {/* Page header */}
+      <div className={styles.header}>
+        <div className={styles.headerTop}>
+          <div>
+            <h1 className={styles.h1}>
+              <span className={styles.pulse} aria-hidden />
+              Tendered Loads
+            </h1>
+            <p className={styles.sub}>
+              <strong>{totalCount} tenders</strong> from {brokerCount} broker
+              {brokerCount === 1 ? "" : "s"}
+              {earliest ? ` since ${fmtTime(earliest)}` : ""}.{" "}
+              <strong>{newCount} were bid by a driver</strong>, {quotedCount}{" "}
+              awaiting a broker response. Avg time-to-bid{" "}
+              <strong>{avgTtb}</strong>.
+              {topLoad?.rate
+                ? ` Highest paying: ${topLoad.broker} $${topLoad.rate.toLocaleString()} · ${
+                    topLoad.pickupZip ?? "?"
+                  }→${topLoad.deliveryZip ?? "?"}.`
+                : ""}
+            </p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-            <button style={S.archiveBtn} onClick={() => fetchLoads()}>Refresh</button>
-            {lastUpdated && (
-              <span style={{ fontSize: 11, color: "#9ca3af" }}>
-                Updated {timeAgo(lastUpdated.toISOString())}
-              </span>
+
+          <div className={styles.actions}>
+            <button className={styles.btn} onClick={() => fetchLoads()}>
+              Refresh
+            </button>
+            <button className={styles.btn}>Filters</button>
+            {isDev && notHidden[0] && (
+              <button
+                className={`${styles.btn} ${styles.btnDev}`}
+                onClick={() => setModalLoad(notHidden[0])}
+              >
+                Preview Book modal
+              </button>
             )}
+            <button className={`${styles.btn} ${styles.btnPrim}`}>
+              <span className={styles.plus}>+</span> Manual tender
+            </button>
           </div>
         </div>
       </div>
 
+      {/* Tabs + toolbar */}
+      <div
+        className={styles.tabStrip}
+        role="tablist"
+        aria-label="Tender filters"
+        ref={tabsRef}
+        onKeyDown={onTabKey}
+      >
+        <button
+          role="tab"
+          aria-selected={tab === "all"}
+          tabIndex={tab === "all" ? 0 : -1}
+          className={tabBtn("all")}
+          onClick={() => setTab("all")}
+        >
+          All
+          <span className={`${styles.tabCount} ${styles.countNeutral}`}>
+            {pendingCount}
+          </span>
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "new"}
+          tabIndex={tab === "new" ? 0 : -1}
+          className={tabBtn("new")}
+          onClick={() => setTab("new")}
+        >
+          New
+          {newCount > 0 && (
+            <span className={`${styles.tabCount} ${styles.countBad}`}>
+              {newCount}
+            </span>
+          )}
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "quoted"}
+          tabIndex={tab === "quoted" ? 0 : -1}
+          className={tabBtn("quoted")}
+          onClick={() => setTab("quoted")}
+        >
+          Quoted
+          {quotedCount > 0 && (
+            <span className={`${styles.tabCount} ${styles.countWarn}`}>
+              {quotedCount}
+            </span>
+          )}
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === "archived"}
+          tabIndex={tab === "archived" ? 0 : -1}
+          className={tabBtn("archived")}
+          onClick={() => setTab("archived")}
+        >
+          Archived
+          {archivedCount > 0 && (
+            <span className={`${styles.tabCount} ${styles.countNeutral}`}>
+              {archivedCount}
+            </span>
+          )}
+        </button>
+
+        <div className={styles.tabRight}>
+          <div className={styles.search}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              placeholder="Search ID, broker, lane, ZIP, driver…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search tenders"
+            />
+            <kbd className={styles.kbd}>/</kbd>
+          </div>
+          <span className={styles.chip}>Today</span>
+          <span className={`${styles.chip} ${styles.chipInfo}`}>Cargo Van</span>
+        </div>
+      </div>
+
+      {/* Mini KPI strip */}
+      <div className={styles.kpiStrip}>
+        <span className={styles.kpiTile}>
+          <span className={`${styles.kpiDot} ${styles.dotLive}`} aria-hidden />
+          <b>{uniqueDrivers}</b> drivers in pool
+          {lastUpdated && ` · refreshed ${timeAgo(lastUpdated.toISOString())}`}
+        </span>
+        <span className={styles.kpiTile}>
+          <span className={`${styles.kpiDot} ${styles.dotInfo}`} aria-hidden />
+          avg bid → response <b>{avgTtb}</b>
+        </span>
+        <span className={styles.kpiTile}>
+          <span className={`${styles.kpiDot} ${styles.dotWarn}`} aria-hidden />
+          <b>{newCount}</b> awaiting your bid
+        </span>
+        <span className={styles.kpiTile}>
+          <span className={`${styles.kpiDot} ${styles.dotGold}`} aria-hidden />
+          quoted pool <b>${premiumPool.toLocaleString()}</b> today
+        </span>
+      </div>
+
       {/* Cards */}
       {loading ? (
-        <div style={S.empty}>Loading loads…</div>
+        <div className={styles.list}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className={styles.skeleton} />
+          ))}
+        </div>
       ) : visible.length === 0 ? (
-        <div style={S.empty}>No loads in this view</div>
+        <div className={styles.empty}>
+          {tab === "new"
+            ? "No driver bids yet. Loads move here once a driver bids."
+            : tab === "all"
+              ? "No active tenders. Distributed loads will appear here."
+              : "No loads in this view."}
+        </div>
       ) : (
-        visible.map((load) => (
-          <LoadCard key={load.id} load={load} onHide={handleHide} onOpen={setModalLoad} onBook={setBookingLoad} />
-        ))
+        <div className={styles.list}>
+          {visible.map((load) => (
+            <LoadCard
+              key={load.id}
+              load={load}
+              archived={tab === "archived"}
+              onBid={setModalLoad}
+              onBook={setBookingLoad}
+              onHide={handleHide}
+              onUnhide={handleUnhide}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
