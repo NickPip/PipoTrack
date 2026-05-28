@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canMutate } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireAuth, requireRole } from "@/lib/auth-helpers";
 import { cached } from "@/lib/cache";
 import { lookupZip, lookupByCoords } from "@/lib/zipcodes";
 import { z } from "zod";
@@ -50,9 +48,8 @@ const patchSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAuth();
+  if (guard instanceof NextResponse) return guard;
 
   const drivers = await prisma.driver.findMany({
     orderBy: { name: "asc" },
@@ -133,12 +130,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
   // Driver availability mutations belong to Dispatch.
-  if (!role || !canMutate(role, "dispatch")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("dispatch", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);

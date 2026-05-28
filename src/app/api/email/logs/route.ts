@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { canAccess } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "dispatch")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("dispatch", "read");
+  if (guard instanceof NextResponse) return guard;
 
   const loads = await prisma.load.findMany({
     where: { brokerReference: { not: null } },

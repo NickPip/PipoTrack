@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canMutate } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
 import { z } from "zod";
 
 const schema = z.object({
@@ -18,11 +16,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    const role = session?.user?.role as Role | undefined;
-    if (!role || !canMutate(role, "dispatch")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const guard = await requireRole("dispatch", "mutate");
+    if (guard instanceof NextResponse) return guard;
 
     const { id: loadId } = await params;
     const body = await req.json();
@@ -32,6 +27,20 @@ export async function POST(
     }
 
     const { bidId, driverId, driverRate, rate, notes } = parsed.data;
+
+    // Verify the bid actually belongs to this load and driver before accepting
+    // it — otherwise a malformed/forged payload could accept a mismatched
+    // bid/driver pairing or attach a bid from a different load.
+    const bid = await prisma.bid.findUnique({
+      where: { id: bidId },
+      select: { loadId: true, driverId: true },
+    });
+    if (!bid || bid.loadId !== loadId || bid.driverId !== driverId) {
+      return NextResponse.json(
+        { error: "Bid does not match the specified load and driver" },
+        { status: 400 },
+      );
+    }
 
     // All three writes go in one transaction. Previously they were sequential
     // and a failure between them (e.g. the bid.update throwing after the

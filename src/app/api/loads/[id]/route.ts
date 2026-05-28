@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canMutate } from "@/lib/rbac";
-import { Role, LoadStatus, FinStatus } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
+import { LoadStatus, FinStatus } from "@/generated/prisma/enums";
 import { parseDateTime } from "@/lib/dates";
+import { isValidStatusTransition } from "@/lib/load-status";
 import { z } from "zod";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -38,13 +38,10 @@ const schema = z.object({
 });
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
   // Logistics mutation — only OPERATIONS/ADMIN. ACCOUNTING has read access to
   // operations data but must not change logistics status.
-  if (!role || !canMutate(role, "operations")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("operations", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
   const body = await req.json();
@@ -75,11 +72,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (d.bolUrls !== undefined) update.bolUrls = d.bolUrls;
   if (d.podUrl !== undefined) update.podUrl = d.podUrl;
 
+  // Reject illegal logistics status jumps (e.g. PENDING → DELIVERED, or
+  // reviving a terminal load). Dispatch-phase statuses are governed by the
+  // bid/book endpoints and pass through this check.
+  if (d.status !== undefined) {
+    const current = await prisma.load.findUnique({ where: { id }, select: { status: true } });
+    if (current && !isValidStatusTransition(current.status, d.status)) {
+      return NextResponse.json(
+        { error: `Invalid status change: ${current.status} → ${d.status}` },
+        { status: 400 },
+      );
+    }
+  }
+
   // Read previous status, update, and (if status changed) write the audit
   // note as one transaction. Without this, the update could succeed and the
   // note write fail, leaving the load history inaccurate.
-  const userName = `${session?.user?.name ?? "Unknown"}`;
-  const userId = (session?.user as { id?: string } | undefined)?.id ?? "";
+  const userName = guard.name || "Unknown";
+  const userId = guard.userId;
 
   const load = await prisma.$transaction(async (tx) => {
     let prevStatus: string | null = null;
@@ -118,11 +128,8 @@ const accountingSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canMutate(role, "accounting")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("accounting", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
   const body = await req.json();
@@ -140,11 +147,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canMutate(role, "operations")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("operations", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
   // Atomic delete: bids → notes → load. If any step fails the others roll

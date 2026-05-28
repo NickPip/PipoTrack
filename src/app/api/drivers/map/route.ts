@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/generated/prisma/enums";
+import { requireAuth } from "@/lib/auth-helpers";
 
 const ACTIVE_STATUSES = [
   "PENDING",
@@ -14,12 +13,8 @@ const ACTIVE_STATUSES = [
 const ONLINE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function GET() {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-
-  if (!role) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireAuth();
+  if (guard instanceof NextResponse) return guard;
 
   const [drivers, activeLoads] = await Promise.all([
     prisma.driver.findMany({

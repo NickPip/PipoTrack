@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccess, canMutate } from "@/lib/rbac";
-import { Role, LoadStatus } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
+import { LoadStatus } from "@/generated/prisma/enums";
 import { drivingMiles } from "@/lib/mapbox";
 import { parseDateTime } from "@/lib/dates";
 import { lookupZip } from "@/lib/zipcodes";
@@ -49,11 +48,8 @@ const schema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canAccess(role, "operations")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("operations", "read");
+  if (guard instanceof NextResponse) return guard;
 
   const loads = await prisma.load.findMany({
     orderBy: { createdAt: "desc" },
@@ -175,12 +171,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
   // Creating a load is a logistics mutation — exclude ACCOUNTING (read-only on ops).
-  if (!role || !canMutate(role, "operations")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("operations", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const body = await req.json();
   const parsed = schema.safeParse(body);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-helpers";
 import { Prisma } from "@/generated/prisma/client";
 import { hash } from "bcryptjs";
 import { z } from "zod";
@@ -19,10 +19,8 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
@@ -45,10 +43,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
 
   const body = await req.json();
   const parsed = createSchema.safeParse(body);

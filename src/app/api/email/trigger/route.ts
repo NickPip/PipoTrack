@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { canMutate } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
 import { pollInbox } from "@/lib/email/imap";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST() {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canMutate(role, "dispatch")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("dispatch", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   try {
     await pollInbox();

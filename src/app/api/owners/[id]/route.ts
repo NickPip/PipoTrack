@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canMutate } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
 import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
 
@@ -27,11 +25,8 @@ const schema = z.object({
 });
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canMutate(role, "recruiting")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("recruiting", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
   const body = await req.json();
@@ -54,11 +49,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canMutate(role, "recruiting")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("recruiting", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
   await prisma.owner.delete({ where: { id } });

@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccess, canMutate } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
 import { z } from "zod";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || (!canAccess(role, "operations") && !canAccess(role, "accounting"))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole(["operations", "accounting"], "read");
+  if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
   const notes = await prisma.loadNote.findMany({
@@ -26,12 +21,9 @@ const postSchema = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
   // Notes write — allow both Operations and Accounting to leave a note.
-  if (!role || (!canMutate(role, "operations") && !canMutate(role, "accounting"))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole(["operations", "accounting"], "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   const { id } = await params;
   const body = await req.json();
@@ -40,8 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
 
-  const userName = session?.user?.name ?? "Unknown";
-  const userId = (session?.user as { id?: string } | undefined)?.id ?? "";
+  const userName = guard.name || "Unknown";
+  const userId = guard.userId;
 
   const note = await prisma.loadNote.create({
     data: {

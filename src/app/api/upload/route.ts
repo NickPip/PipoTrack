@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { canMutate } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
 import { uploadFile } from "@/lib/supabase-storage";
 import { clientIp, getLimiter } from "@/lib/rate-limit";
 
@@ -43,16 +41,12 @@ const EXT_FROM_MIME: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const role = session?.user?.role as Role | undefined;
-  if (!role || !canMutate(role, "recruiting")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireRole("recruiting", "mutate");
+  if (guard instanceof NextResponse) return guard;
 
   // Key by authenticated user id so one logged-in user can't burn another's
   // budget from the same office IP.
-  const identifier =
-    (session!.user as { id?: string }).id ?? clientIp(req);
+  const identifier = guard.userId || clientIp(req);
   const { success, reset } = await uploadLimiter.limit(identifier);
   if (!success) {
     const retryAfter = Math.max(1, Math.ceil((reset - Date.now()) / 1000));

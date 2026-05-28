@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canMutate } from "@/lib/rbac";
-import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth-helpers";
 import { getBot } from "@/bot/bot";
 
 export const runtime = "nodejs";
@@ -12,11 +10,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    const role = session?.user?.role as Role | undefined;
-    if (!role || !canMutate(role, "dispatch")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const guard = await requireRole("dispatch", "mutate");
+    if (guard instanceof NextResponse) return guard;
 
     const { id: loadId } = await params;
 
