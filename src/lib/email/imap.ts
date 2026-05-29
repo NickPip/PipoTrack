@@ -39,17 +39,6 @@ async function processMessage(source: Buffer) {
     return;
   }
 
-  if (load.brokerReference) {
-    const existing = await prisma.load.findFirst({
-      where: { brokerReference: load.brokerReference },
-      select: { id: true },
-    });
-    if (existing) {
-      console.log(`[email] Duplicate order #${load.brokerReference}, skipping`);
-      return;
-    }
-  }
-
   const hasDimensions = load.pieces || load.dimensionL;
   const loadDims = hasDimensions
     ? { pieces: load.pieces, L: load.dimensionL, W: load.dimensionW, H: load.dimensionH }
