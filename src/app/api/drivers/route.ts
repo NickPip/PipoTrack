@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
+
+// Never serialize driver secrets back to the client.
+const DRIVER_SECRETS = { appPassword: true, appToken: true } as const;
 
 const DRIVER_FIELD_LABELS = {
   dlNumber: "Driver license number",
@@ -38,6 +42,7 @@ export async function GET() {
   const drivers = await prisma.driver.findMany({
     orderBy: { name: "asc" },
     include: { unit: { select: { id: true, unitNumber: true } } },
+    omit: DRIVER_SECRETS,
   });
 
   return NextResponse.json(drivers);
@@ -54,9 +59,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { unitId, ...rest } = parsed.data;
+    const { unitId, appPassword, ...rest } = parsed.data;
     const driver = await prisma.driver.create({
-      data: { ...rest, unitId: unitId ?? null },
+      data: {
+        ...rest,
+        unitId: unitId ?? null,
+        appPassword: appPassword ? await hash(appPassword, 12) : null,
+      },
+      omit: DRIVER_SECRETS,
     });
     return NextResponse.json(driver, { status: 201 });
   } catch (err) {

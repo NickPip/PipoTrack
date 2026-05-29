@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { handlePrismaError } from "@/lib/prisma-errors";
 import { z } from "zod";
+
+const DRIVER_SECRETS = { appPassword: true, appToken: true } as const;
 
 const DRIVER_FIELD_LABELS = {
   dlNumber: "Driver license number",
@@ -41,12 +44,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   }
 
-  const { unitId, ...rest } = parsed.data;
+  const { unitId, appPassword, ...rest } = parsed.data;
 
   try {
     const driver = await prisma.driver.update({
       where: { id },
-      data: { ...rest, unitId: unitId ?? null },
+      data: {
+        ...rest,
+        unitId: unitId ?? null,
+        // Only touch the password when a new one is supplied; a blank field on
+        // edit means "keep the existing hash" (mirrors the Users flow).
+        ...(appPassword ? { appPassword: await hash(appPassword, 12) } : {}),
+      },
+      omit: DRIVER_SECRETS,
     });
     return NextResponse.json(driver);
   } catch (err) {
