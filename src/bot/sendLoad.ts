@@ -141,34 +141,57 @@ export function invalidateDriverCache() {
   driverCache = null;
 }
 
-export async function distributeLoad(loadId: string): Promise<number> {
-  const load = await prisma.load.findUnique({ where: { id: loadId } });
-  if (!load || !load.vehicleRequired) return 0;
+// The subset of a load needed to run the 3 Doors. Deliberately not a DB row, so
+// matching can run on a freshly-parsed email *before* any Load is persisted.
+export type LoadMatchInput = {
+  vehicleRequired: string | null;
+  pickupZip: string | null;
+  dimensions: { pieces?: number | null; L?: number | null; W?: number | null; H?: number | null } | null;
+};
+
+// Run the 3 Doors against currently-available drivers. No DB writes — used to
+// decide whether a parsed load is worth saving at all.
+export async function findMatchingDrivers(load: LoadMatchInput): Promise<CachedDrivers> {
+  if (!load.vehicleRequired) return [];
 
   const drivers = await getAvailableDrivers();
-
-  const loadDims = load.dimensions as { pieces?: number; L?: number; W?: number; H?: number } | null;
-
-  const matching = drivers.filter((d) => {
+  return drivers.filter((d) => {
     if (!doorOne(load.vehicleRequired!, d.vehicleType)) return false;
     if (!doorTwo(d.currentZip, d.searchRadius, load.pickupZip)) return false;
     const unitDims = d.unit?.dimensions as { length?: number; width?: number; height?: number } | null;
-    if (!doorThree(unitDims, loadDims)) return false;
+    if (!doorThree(unitDims, load.dimensions)) return false;
     return true;
   });
+}
 
-  // Send to all matching drivers in parallel — Telegram allows ~30 msg/sec globally
+// Send an already-persisted load to a pre-matched set of drivers.
+// Telegram allows ~30 msg/sec globally — fan-out here is bounded by matches.
+export async function sendLoadToMatchedDrivers(
+  load: LoadRecord,
+  drivers: CachedDrivers
+): Promise<number> {
   const results = await Promise.allSettled(
-    matching.map((driver) => sendLoadToDriver(load, driver as DriverWithUnit))
+    drivers.map((driver) => sendLoadToDriver(load, driver as DriverWithUnit))
   );
 
   const sent = results.filter((r) => r.status === "fulfilled").length;
-  const failed = results.filter((r) => r.status === "rejected");
-  for (const f of failed) {
+  for (const f of results.filter((r) => r.status === "rejected")) {
     console.error("[bot] Failed to send load to driver:", (f as PromiseRejectedResult).reason);
   }
-
   return sent;
+}
+
+// Dispatcher/manual path: the load already exists — find matches and send.
+export async function distributeLoad(loadId: string): Promise<number> {
+  const load = await prisma.load.findUnique({ where: { id: loadId } });
+  if (!load) return 0;
+
+  const drivers = await findMatchingDrivers({
+    vehicleRequired: load.vehicleRequired,
+    pickupZip: load.pickupZip,
+    dimensions: load.dimensions as LoadMatchInput["dimensions"],
+  });
+  return sendLoadToMatchedDrivers(load, drivers);
 }
 
 // Public helper for debug/seed scripts — fetches by ID then delegates

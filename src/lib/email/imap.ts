@@ -3,7 +3,7 @@ import { simpleParser } from "mailparser";
 import { parseSylectusEmail } from "./parser";
 import { prisma } from "@/lib/prisma";
 import { LoadStatus } from "@/generated/prisma/enums";
-import { distributeLoad } from "@/bot/sendLoad";
+import { findMatchingDrivers, sendLoadToMatchedDrivers } from "@/bot/sendLoad";
 
 const LOAD_SENDER = process.env.LOAD_EMAIL_SENDER ?? "postedloads@sylectus.com";
 // Max emails processed in parallel — keeps DB + Telegram pressure manageable
@@ -51,6 +51,23 @@ async function processMessage(source: Buffer) {
   }
 
   const hasDimensions = load.pieces || load.dimensionL;
+  const loadDims = hasDimensions
+    ? { pieces: load.pieces, L: load.dimensionL, W: load.dimensionW, H: load.dimensionH }
+    : null;
+
+  // Match BEFORE persisting: at this volume most emails match no available
+  // driver, so we run the 3 Doors first and only keep a load that at least one
+  // driver can take. Drops the rest instead of filling the table with dead rows.
+  const matches = await findMatchingDrivers({
+    vehicleRequired: load.vehicleRequired ?? null,
+    pickupZip: load.pickupZip ?? null,
+    dimensions: loadDims,
+  });
+
+  if (matches.length === 0) {
+    console.log(`[email] No available driver for order #${load.brokerReference ?? "?"} — not saved`);
+    return;
+  }
 
   const saved = await prisma.load.create({
     data: {
@@ -69,17 +86,15 @@ async function processMessage(source: Buffer) {
       rate:            load.rate            ?? null,
       vehicleRequired: load.vehicleRequired ?? null,
       weight:          load.weight          ?? null,
-      dimensions:      hasDimensions
-        ? { pieces: load.pieces, L: load.dimensionL, W: load.dimensionW, H: load.dimensionH }
-        : undefined,
+      dimensions:      loadDims ?? undefined,
       status: LoadStatus.PENDING_DISTRIBUTION,
     },
   });
 
   console.log(`[email] Load #${saved.loadNumber} created from order #${load.brokerReference}`);
 
-  const sent = await distributeLoad(saved.id);
-  console.log(`[email] Load #${saved.loadNumber} distributed to ${sent} driver(s)`);
+  const sent = await sendLoadToMatchedDrivers(saved, matches);
+  console.log(`[email] Load #${saved.loadNumber} sent to ${sent} matched driver(s)`);
 
   return saved;
 }

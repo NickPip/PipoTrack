@@ -21,7 +21,7 @@ function maxCapacity(vehicle: Dims, freight: Dims): number {
 
 export function doorThree(
   unitDimensions: { length?: number; width?: number; height?: number } | null | undefined,
-  loadDimensions: { pieces?: number; L?: number; W?: number; H?: number } | null | undefined
+  loadDimensions: { pieces?: number | null; L?: number | null; W?: number | null; H?: number | null } | null | undefined
 ): boolean {
   if (!unitDimensions || !loadDimensions) return true; // no dims to validate, let through
 
