@@ -100,7 +100,8 @@ model Driver {
   drivingRecordUrl String?
   twicTsaUrl       String?
   appUsername      String?
-  appPassword      String?
+  appPassword      String?          // bcrypt hash, set by recruiting on creation
+  appToken         String?          @unique // opaque location-ingest token, rotated on each app login
   vehicleType      String?
   currentZip       String?
   searchRadius     Int?
