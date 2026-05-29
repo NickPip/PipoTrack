@@ -13,6 +13,8 @@
     "bot:dev": "npx tsx src/bot/dev.ts"
   },
   "dependencies": {
+    "@grammyjs/auto-retry": "^2.0.2",
+    "@grammyjs/transformer-throttler": "^1.2.1",
     "@hookform/resolvers": "^5.4.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",

@@ -1,4 +1,6 @@
 import { Bot, Context, InlineKeyboard, session, SessionFlavor } from "grammy";
+import { apiThrottler } from "@grammyjs/transformer-throttler";
+import { autoRetry } from "@grammyjs/auto-retry";
 import { prisma } from "@/lib/prisma";
 import { invalidateDriverCache } from "./sendLoad";
 
@@ -35,6 +37,13 @@ export function getBot(): Bot<BotContext> {
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not set");
 
   const bot = new Bot<BotContext>(token);
+
+  // Rate-limit every outbound API call so high-volume load fan-out can't blow
+  // past Telegram's limits (global ~30/s, per-chat ~1/s) — the throttler queues
+  // the overflow instead of dropping it. autoRetry is registered first (outer)
+  // so a 429 is retried (honoring retry_after) back through the throttler.
+  bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 30 }));
+  bot.api.config.use(apiThrottler());
 
   bot.use(
     session<SessionData, BotContext>({
